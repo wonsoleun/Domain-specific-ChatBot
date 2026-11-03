@@ -1,0 +1,10 @@
+docling>=2.0
+numpy
+pyyaml
+tqdm
+torch
+sentence-transformers>=2.2
+transformers>=4.43
+accelerate
+bitsandbytes
+openai>=1.0

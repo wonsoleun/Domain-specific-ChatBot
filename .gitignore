@@ -1,0 +1,10 @@
+__pycache__/
+*.egg-info/
+.venv/
+data/raw/*
+!data/raw/.gitkeep
+data/processed/
+data/index/
+data/gpl/
+models/
+.env

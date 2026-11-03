@@ -1,0 +1,50 @@
+# 경로
+paths:
+  raw_pdf_dir: data/raw                  # DNV PDF를 여기에 넣으세요
+  docling_dir: data/processed/docling    # PDF별 Docling JSON + Markdown (변환 결과 캐시)
+  chunks: data/processed/chunks.jsonl
+  tables: data/processed/tables.jsonl
+  index_base: data/index/base            # base 모델로 만든 인덱스
+  index_adapted: data/index/adapted      # domain-adapted 모델로 만든 인덱스
+  queries: data/gpl/queries.jsonl
+  triplets: data/gpl/triplets.npz
+  model_out: models/bi-encoder-adapted
+
+# 1단계: PDF → Docling JSON → 계층 chunk (DNV 번호 체계 기준, 논문 2.2.1)
+parse:
+  article_depth: 2        # "1.1" 수준을 Article로 간주 → "1.1.1", "a)", "i)"는 nested chunk
+
+# 2단계: 검색 모듈 (논문 2.2.2, 4.2)
+retriever:
+  base_model: sentence-transformers/msmarco-bert-base-dot-v5   # BERT + MS MARCO, dot product
+  max_seq_length: 512
+  batch_size: 64
+  top_k: 5
+
+# 3단계: GPL 학습 데이터 생성 (논문 3.2)
+gpl:
+  openai_model: gpt-4o
+  n_contents: 20000
+  queries_per_content: 3
+  negatives_per_query: 50
+  bottom_ratio: 0.3
+  cross_encoder: cross-encoder/ms-marco-MiniLM-L-6-v2
+  workers: 8              # OpenAI 동시 요청 수
+  seed: 42
+
+# 4단계: Domain adaptation 학습 (논문 4.2)
+train:
+  batch_size: 64
+  lr: 1.0e-5
+  max_steps: 30000
+  eval_every: 1000
+  patience: 5             # val loss가 연속 5번 개선되지 않으면 조기 종료
+  val_ratio: 0.01         # query 단위로 1%를 검증용으로 분리
+  max_seq_length: 256     # 학습 시 메모리 절약 (검색 시엔 512)
+  fp16: true
+
+# 5단계: 답변 생성 (논문 2.2.3, 4.3)
+generator:
+  model: meta-llama/Llama-3.1-8B-Instruct
+  load_in_4bit: true
+  max_new_tokens: 768
