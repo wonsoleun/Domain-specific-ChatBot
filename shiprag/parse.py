@@ -96,10 +96,14 @@ TEXT_LABELS = {DocItemLabel.TEXT, DocItemLabel.PARAGRAPH, DocItemLabel.SECTION_H
                DocItemLabel.TITLE, DocItemLabel.LIST_ITEM, DocItemLabel.CAPTION}
 
 
-def _is_guidance_end_latex(latex):
-    """Guidance note 끝 표시가 수식으로 잘못 인식된 경우. 예: \\cdots e ^ { - } n ^ { - } d ^ { - } 0 ^ { - } f ..."""
-    letters = re.sub(r"\\c?dots?|[^a-z0-9]", "", latex.lower())
-    return re.search(r"end[o0]f", letters) is not None
+def _is_junk_latex(latex):
+    """수식으로 잘못 인식된 쓰레기. LaTeX 명령(\\text, \\cdots …)과 기호를 지운 글자로 판단.
+    - Guidance note 끝 표시: "\\cdots e ^ { - } n ^ { - } d ^ { - } 0 ^ { - } f ...",
+      "\\cdots e \\text {-} n \\text {-} d ...", "e ^ { - n - d } 0 ^ { - } 0 ^ { - } g ^ { - } u ^ { - } | d - a - n - c - e ..."
+      (OCR 오인식으로 o→0, i→1/| 등이 섞여 "endof"가 깨지므로 end + guid/dance/note 조합으로 판단)
+    - 글자·숫자가 하나도 없는 것: "= \\\\ = \\\\ =" """
+    letters = re.sub(r"\\[a-z]+|[^a-z0-9]", "", latex.lower())
+    return not letters or ("end" in letters and re.search(r"guid|dance|n[o0]te", letters) is not None)
 
 
 def _page_offset(doc, start):
@@ -117,7 +121,7 @@ def _items(doc, page_info, offset=0):
             yield "table", page, item
         elif item.label == DocItemLabel.FORMULA:
             latex = (item.text or item.orig).strip()
-            if latex and not EQ_NUMBER_RE.match(latex) and not _is_guidance_end_latex(latex):
+            if latex and not EQ_NUMBER_RE.match(latex) and not _is_junk_latex(latex):
                 yield "line", page, f"$$ {latex} $$"
         elif item.label in TEXT_LABELS:
             if item.label == DocItemLabel.CAPTION and item.parent and item.parent.cref.startswith("#/tables/"):
