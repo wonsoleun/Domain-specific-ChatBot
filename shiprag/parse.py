@@ -93,10 +93,15 @@ TEXT_LABELS = {DocItemLabel.TEXT, DocItemLabel.PARAGRAPH, DocItemLabel.SECTION_H
                DocItemLabel.TITLE, DocItemLabel.LIST_ITEM, DocItemLabel.CAPTION}
 
 
-def _items(doc, page_info):
+def _page_offset(doc, start):
+    """구간 변환(page_range) JSON의 page_no가 구간 내 상대 번호면 PDF 절대 번호로 바꿀 offset."""
+    return start - 1 if doc.pages and min(doc.pages) < start else 0
+
+
+def _items(doc, page_info, offset=0):
     """Docling 본문을 읽기 순서대로 ("line", page, text) / ("table", page, TableItem)로 반환."""
     for item, _ in doc.iterate_items():
-        page = item.prov[0].page_no if getattr(item, "prov", None) else None
+        page = item.prov[0].page_no + offset if getattr(item, "prov", None) else None
         if page is not None and not page_info(page)[2]:  # 표지·Contents·Changes 페이지
             continue
         if isinstance(item, TableItem):
@@ -116,13 +121,14 @@ def _items(doc, page_info):
                 yield "line", page, text
 
 
-def parse_docling_json(json_path, pdf_path, article_depth=2):
-    """Docling JSON 하나를 파싱해 (articles, tables) 반환. pdf_path는 책갈피(Chapter 정보) 읽기용.
+def parse_docling_json(parts, pdf_path, article_depth=2):
+    """PDF 하나의 구간별 Docling JSON(convert_pdf 반환값 [(json_path, start_page)])을 순서대로 파싱해
+    (articles, tables) 반환. 구간 경계를 넘어 Section·번호 상태가 이어집니다. pdf_path는 책갈피(Chapter) 읽기용.
 
     articles: [{"doc", "title_path", "article_no", "root": Node}]
     tables:   [{"doc", "section", "index", "caption", "html", "page"}]
     """
-    doc_name = Path(json_path).stem
+    doc_name = Path(pdf_path).stem
     articles, tables = [], []
 
     section = ""            # "Pt.2 Ch.1 Section 1 GENERAL" (chunk/표 key로 사용)
@@ -152,8 +158,13 @@ def parse_docling_json(json_path, pdf_path, article_depth=2):
         node_stack[-1].children.append(node)
         node_stack.append(node)
 
-    doc = DoclingDocument.load_from_json(json_path)
-    for kind, pno, obj in _items(doc, page_info):
+    def all_items():
+        for json_path, start in parts:
+            d = DoclingDocument.load_from_json(json_path)
+            for kind, pno, obj in _items(d, page_info, _page_offset(d, start)):
+                yield d, kind, pno, obj
+
+    for doc, kind, pno, obj in all_items():
         if kind == "table":
             caption = obj.caption_text(doc)
             m = CAPTION_RE.match(caption)
@@ -164,7 +175,8 @@ def parse_docling_json(json_path, pdf_path, article_depth=2):
 
         line = obj
         if m := SECTION_RE.match(line):
-            chapter, chapter_title, _ = page_info(pno)
+            if pno is not None:
+                chapter, chapter_title, _ = page_info(pno)
             section_title = f"Section {m.group(1)} {m.group(2)}".strip()
             section = f"{chapter} {section_title}".strip()
             num_stack, headings, article, node_stack = [], {}, None, []

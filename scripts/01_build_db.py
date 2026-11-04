@@ -16,8 +16,8 @@ p, pc = cfg["paths"], cfg["parse"]
 converter = make_converter()
 all_articles, all_tables = [], []
 for pdf in sorted(Path(p["raw_pdf_dir"]).glob("**/*.pdf")):
-    json_path = convert_pdf(converter, pdf, p["docling_dir"])
-    articles, tables = parse_docling_json(json_path, pdf, pc["article_depth"])
+    parts = convert_pdf(converter, pdf, p["docling_dir"], cfg["convert"]["batch_pages"])
+    articles, tables = parse_docling_json(parts, pdf, pc["article_depth"])
     print(f"{pdf.name}: {len(articles)} articles, {len(tables)} tables")
     all_articles += articles
     all_tables += tables

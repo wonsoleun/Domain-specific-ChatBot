@@ -41,7 +41,7 @@ python scripts/02_build_index.py --model adapted       # adapted 모델 인덱�
 python scripts/05_ask.py --query "What is the minimum thickness of bottom plating?"
 ```
 
-검색만 확인할 때는 `--no-generate`, base 모델과 비교할 때는 `--index base`를 붙입니다.
+검색만 확인할 때는 `--no-generate`, base 모델과 비교할 때는 `--index base`를 붙입니다. `--query`를 생략하면 대화형 모드로 실행되어 모델을 한 번만 로드합니다.
 
 ### 검색 성능 비교 (선택)
 
@@ -76,7 +76,7 @@ Colab 세션은 끊길 수 있으니 `data/`, `models/`를 Google Drive에 두�
 
 ## 출력 데이터 형식
 
-`data/processed/docling/<PDF이름>.json` / `.md`: Docling 변환 결과. JSON은 파싱 입력이고, **Markdown은 변환이 잘 됐는지 눈으로 확인하는 용도**입니다(수식은 `$$ ... $$`, 표는 Markdown 표로 보입니다). 이미 JSON이 있는 PDF는 다시 변환하지 않으므로, 변환 설정을 바꿨다면 해당 JSON을 지우고 다시 실행하세요.
+`data/processed/docling/<PDF이름>/p0001-0050.json` / `.md`: Docling 변환 결과 (`convert.batch_pages`쪽 단위). JSON은 파싱 입력이고, **Markdown은 변환이 잘 됐는지 눈으로 확인하는 용도**입니다(수식은 `$$ ... $$`, 표는 Markdown 표로 보입니다). 수백 쪽을 한 번에 변환하면 Colab RAM이 부족해 프로세스가 죽기 때문에(출력 끝에 `^C`) 구간마다 저장하며, 이미 JSON이 있는 구간은 다시 변환하지 않습니다. 변환 설정을 바꿨다면 해당 폴더를 지우고 다시 실행하세요.
 
 
 `chunks.jsonl` (한 줄 = 한 chunk)

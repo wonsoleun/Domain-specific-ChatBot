@@ -12,11 +12,12 @@ from tqdm import tqdm
 from .utils import read_jsonl
 
 
-def _split_by_query(query_idx, val_ratio, seed):
+def _split_by_group(group, val_ratio, seed):
+    """group 값이 같은 샘플은 train/val 한쪽에만 들어가도록 분리."""
     rng = np.random.default_rng(seed)
-    uq = np.unique(query_idx)
-    val_q = set(rng.choice(uq, size=max(1, int(len(uq) * val_ratio)), replace=False).tolist())
-    is_val = np.array([q in val_q for q in query_idx])
+    ug = np.unique(group)
+    val_g = rng.choice(ug, size=max(1, int(len(ug) * val_ratio)), replace=False)
+    is_val = np.isin(group, val_g)
     return np.where(~is_val)[0], np.where(is_val)[0]
 
 
@@ -32,7 +33,8 @@ def train(base_model, chunks_path, queries_path, triplets_path, out_dir,
     queries = [q["query"] for q in read_jsonl(queries_path)]
     t = np.load(triplets_path)
     q_idx, pos, neg, margin = t["query"], t["pos"], t["neg"], t["margin"]
-    train_ids, val_ids = _split_by_query(q_idx, val_ratio, seed)
+    # positive chunk 단위로 분리: 같은 chunk에서 나온 질문 3개가 train/val에 나뉘면 val loss가 낙관적으로 나옴
+    train_ids, val_ids = _split_by_group(pos, val_ratio, seed)
 
     def embed(batch_texts):
         feats = model.tokenize(batch_texts)

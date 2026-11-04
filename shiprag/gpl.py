@@ -22,6 +22,7 @@ from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
+from .retrieve import load_index
 from .utils import read_jsonl
 
 QUERY_INSTRUCTIONS = """1. Based on the following rule of ship regulations, generate {n} different questions.
@@ -45,20 +46,31 @@ def synthesize_queries(chunks, out_path, model="gpt-4o", n_contents=20000, per_c
     lock = threading.Lock()
 
     def work(chunk):
-        resp = client.chat.completions.create(
-            model=model,
-            response_format={"type": "json_object"},
-            messages=[{"role": "system", "content": QUERY_INSTRUCTIONS.format(n=per_content)},
-                      {"role": "user", "content": f"Rule:\n{chunk['content']}"}],
-        )
-        qs = json.loads(resp.choices[0].message.content).get("questions", [])[:per_content]
+        # 한 chunk 실패(rate limit, 잘못된 JSON 등)로 전체가 멈추지 않도록 건너뜀 → 재실행 시 다시 시도
+        try:
+            resp = client.chat.completions.create(
+                model=model,
+                response_format={"type": "json_object"},
+                messages=[{"role": "system", "content": QUERY_INSTRUCTIONS.format(n=per_content)},
+                          {"role": "user", "content": f"Rule:\n{chunk['content']}"}],
+            )
+            qs = json.loads(resp.choices[0].message.content).get("questions", [])
+        except Exception as e:
+            tqdm.write(f"chunk {chunk['chunk_id']} 실패: {e!r}")
+            return 0
+        qs = [q.strip() for q in qs if isinstance(q, str) and q.strip()][:per_content]
         with lock, open(out_path, "a", encoding="utf-8") as f:
             for q in qs:
-                f.write(json.dumps({"chunk_id": chunk["chunk_id"], "query": q}, ensure_ascii=False) + "\n")
+                # doc/node는 01 재실행으로 chunk_id가 바뀌었는지 검사하는 용도
+                f.write(json.dumps({"chunk_id": chunk["chunk_id"], "doc": chunk["doc"], "node": chunk["node"],
+                                    "query": q}, ensure_ascii=False) + "\n")
+        return 1
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with ThreadPoolExecutor(workers) as ex:
-        list(tqdm(ex.map(work, todo), total=len(todo), desc="query synthesis"))
+        ok = sum(tqdm(ex.map(work, todo), total=len(todo), desc="query synthesis"))
+    if ok < len(todo):
+        print(f"{len(todo) - ok}개 chunk 실패 — 다시 실행하면 실패한 것만 이어서 생성합니다.")
 
 
 @torch.no_grad()
@@ -78,14 +90,19 @@ def mine_and_label(chunks, queries_path, base_index_dir, out_path, cross_encoder
     device = "cuda" if torch.cuda.is_available() else "cpu"
     rng = np.random.default_rng(seed)
     queries = read_jsonl(queries_path)
+    stale = [q for q in queries if q["chunk_id"] >= len(chunks) or
+             ("node" in q and (chunks[q["chunk_id"]]["doc"], chunks[q["chunk_id"]]["node"]) != (q["doc"], q["node"]))]
+    if stale:
+        raise ValueError(f"queries.jsonl의 {len(stale)}개 질문이 현재 chunks.jsonl과 맞지 않습니다 "
+                         f"(01을 다시 실행해 chunk_id가 바뀜). queries.jsonl을 지우고 --step queries부터 다시 실행하세요.")
 
-    meta = json.loads((Path(base_index_dir) / "meta.json").read_text())
-    corpus = torch.from_numpy(np.load(Path(base_index_dir) / "embeddings.npy")).to(device)
+    meta, corpus = load_index(base_index_dir, len(chunks))
+    corpus = torch.from_numpy(corpus).to(device)
     bi = SentenceTransformer(meta["model"], device=device)
     q_emb = bi.encode([q["query"] for q in queries], convert_to_tensor=True, show_progress_bar=True).to(device)
 
     article_of = [(c["doc"], c["section"], c["article_no"]) for c in chunks]
-    n_bottom = max(negatives_per_query, int(len(chunks) * bottom_ratio))
+    n_bottom = min(len(chunks), max(negatives_per_query, int(len(chunks) * bottom_ratio)))
 
     # 3) Negative mining: 하위 30% 구간에서 랜덤 샘플 (같은 article의 chunk는 제외 — 정답을 포함할 수 있음)
     pos_ids, neg_ids = [], []

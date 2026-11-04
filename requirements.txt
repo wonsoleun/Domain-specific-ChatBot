@@ -1,4 +1,6 @@
-docling>=2.0
+docling>=2.20
+docling-core
+pypdfium2
 numpy
 pyyaml
 tqdm

@@ -10,11 +10,14 @@ INSTRUCTIONS = """1. Deeply understand and analyze the provided rule information
 
 
 def build_prompt(query, hits, table_lookup):
-    blocks = []
+    blocks, attached = [], set()
     for i, h in enumerate(hits, 1):
         block = f"[{i}] {h['title']} (p.{h['page']})\n{h['content']}"
         for t in referenced_tables(h, table_lookup):
-            block += f"\n{t['html']}"
+            key = (t["doc"], t["section"], t["index"])
+            if key not in attached:  # 여러 hit가 같은 표를 참조해도 한 번만 첨부
+                attached.add(key)
+                block += f"\n{t['html']}"
         blocks.append(block)
     return "Related rule:\n" + "\n\n".join(blocks) + f"\n\nQuery: {query}"
 
