@@ -91,7 +91,7 @@ Colab 세션은 끊길 수 있으니 `data/`, `models/`를 Google Drive에 두�
 - `node == article_no`이면 Article 전체 chunk, 그 외는 nested chunk (논문 Fig.3~5)
 - `title`은 출처로 표시, `content`만 임베딩
 
-`tables.jsonl`: `{"doc", "section", "index": "Table 1", "caption", "html", "page"}`. 검색된 chunk 본문에 `Table N`이 있으면 같은 Section의 표, `Sec.2 Table N` / `Ch.2 Sec.1 Table N`이면 해당 Section의 표 HTML이 LLM 입력에 첨부됩니다 (논문 Fig.6). 여러 페이지에 걸친 표는 하나로 합쳐지며(`html`에 `<table>`이 여러 개), Docling이 캡션을 제목으로 잘못 분류한 경우 표 바로 앞 줄의 `Table N ...`을 캡션으로 씁니다.
+`tables.jsonl`: `{"doc", "section", "index": "Table 1", "caption", "html", "page"}`. 검색된 chunk 본문에 `Table N`이 있으면 같은 Section의 표, `Sec.2 Table N` / `Ch.2 Sec.1 Table N`이면 해당 Section의 표 HTML이 LLM 입력에 첨부됩니다 (논문 Fig.6). 여러 페이지에 걸친 표는 하나로 합쳐지며(`html`에 `<table>`이 여러 개), Docling이 캡션을 제목으로 잘못 분류한 경우 표 바로 앞 줄의 `Table N ...`을 캡션으로 씁니다. 원문에도 캡션이 없는 표(Guidance note 속 작은 표 등)는 참조될 수 없으므로 `tables.jsonl` 대신 해당 조항 `content`에 Markdown 표로 들어갑니다.
 
 ## 논문과 다른 점 / 제약
 

@@ -185,6 +185,12 @@ def parse_docling_json(parts, pdf_path, article_depth=2):
             m = CAPTION_RE.match(caption)
             if not m and prev_kind == "table" and tables and tables[-1]["section"] == section and cols == prev_cols:
                 tables[-1]["html"] += "\n" + html  # 캡션 없이 표 바로 뒤에 이어지는 표 = 다음 페이지로 넘어간 부분
+            elif not m and article is not None:
+                # 원문에도 캡션이 없는 표(예: Guidance note 속 작은 표)는 "Table N"으로 참조될 수 없어
+                # 별도 저장하면 내용이 사라지므로, 해당 조항 본문에 Markdown 표로 넣음
+                node_stack[-1].lines.append("\n" + obj.export_to_markdown(doc) + "\n")
+                prev_kind = "line"
+                continue
             else:
                 tables.append({"doc": doc_name, "section": section,
                                "index": f"Table {m.group(1)}" if m else f"p{pno}-table",
