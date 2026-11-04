@@ -20,8 +20,10 @@ from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption
 
 
-def make_converter():
-    opts = PdfPipelineOptions(do_table_structure=True, do_formula_enrichment=True)
+def make_converter(do_ocr=False, do_table_structure=True, do_formula_enrichment=True):
+    # DNV PDF는 모든 페이지에 텍스트 레이어가 있어 OCR(Docling 기본값 True)은 메모리·시간 낭비
+    opts = PdfPipelineOptions(do_ocr=do_ocr, do_table_structure=do_table_structure,
+                              do_formula_enrichment=do_formula_enrichment)
     return DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=opts)})
 
 

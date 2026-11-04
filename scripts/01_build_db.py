@@ -13,10 +13,11 @@ ap.add_argument("--config", default="config.yaml")
 cfg = load_config(ap.parse_args().config)
 p, pc = cfg["paths"], cfg["parse"]
 
-converter = make_converter()
+cc = cfg["convert"]
+converter = make_converter(cc["do_ocr"], do_formula_enrichment=cc["do_formula_enrichment"])
 all_articles, all_tables = [], []
 for pdf in sorted(Path(p["raw_pdf_dir"]).glob("**/*.pdf")):
-    parts = convert_pdf(converter, pdf, p["docling_dir"], cfg["convert"]["batch_pages"])
+    parts = convert_pdf(converter, pdf, p["docling_dir"], cc["batch_pages"])
     articles, tables = parse_docling_json(parts, pdf, pc["article_depth"])
     print(f"{pdf.name}: {len(articles)} articles, {len(tables)} tables")
     all_articles += articles
