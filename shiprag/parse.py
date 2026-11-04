@@ -28,12 +28,15 @@ NUM_RE = re.compile(r"^(\d+(?:\.\d+)*)\.?\s+(\S.*)$")
 LETTER_RE = re.compile(r"^([a-z])\)\s*(.*)$")
 ROMAN_RE = re.compile(r"^(i|ii|iii|iv|v|vi|vii|viii|ix|x)\)\s*(.*)$")
 CAPTION_RE = re.compile(r"^Table\s+(\d+)\b")
-TABLE_REF_RE = re.compile(r"\bTable\s+(\d+)\b")
+TABLE_REF_RE = re.compile(r"(?:\b(Ch\.\s?\d+)\s+)?(?:\bSec\.\s?(\d+)\s+)?\bTable\s+(\d+)\b")
+SECTION_KEY_RE = re.compile(r"^(Pt\.\s*\d+)\s+(Ch\.\s*\d+)\s+Section\s+(\d+)\b")
 CHAPTER_RE = re.compile(r"\b(Pt\.\s*\d+\s+Ch\.\s*\d+)")
-# 실제 DNV PDF의 매 페이지 반복 텍스트: 다운로드 워터마크, 우측 세로 표기, Guidance note 끝 표시
+# 실제 DNV PDF의 매 페이지 반복 텍스트: 다운로드 워터마크, 우측 세로 표기
 NOISE_RE = re.compile(r"^(This copy of the document is intended for use by"
-                      r"|-+e-n-d-+o-f-+[a-z-]*-+$"
                       r"|Part \d+ Chapter \d+ Section \d+$)")
+# Guidance note 끝 표시 "---e-n-d---o-f---g-u-i-d-a-n-c-e---n-o-t-e---": 문장 중간에 붙어 나오기도 함
+GUIDANCE_END_RE = re.compile(r"-*e-n-d-+o-f-+[a-z-]*")
+EQ_NUMBER_RE = re.compile(r"^\(\s*\d+\s*\)$")  # 수식 옆 번호 "(1)"만 따로 인식된 것
 
 LETTER_LEVEL, ROMAN_LEVEL = 100, 101
 
@@ -93,6 +96,12 @@ TEXT_LABELS = {DocItemLabel.TEXT, DocItemLabel.PARAGRAPH, DocItemLabel.SECTION_H
                DocItemLabel.TITLE, DocItemLabel.LIST_ITEM, DocItemLabel.CAPTION}
 
 
+def _is_guidance_end_latex(latex):
+    """Guidance note 끝 표시가 수식으로 잘못 인식된 경우. 예: \\cdots e ^ { - } n ^ { - } d ^ { - } 0 ^ { - } f ..."""
+    letters = re.sub(r"\\c?dots?|[^a-z0-9]", "", latex.lower())
+    return re.search(r"end[o0]f", letters) is not None
+
+
 def _page_offset(doc, start):
     """구간 변환(page_range) JSON의 page_no가 구간 내 상대 번호면 PDF 절대 번호로 바꿀 offset."""
     return start - 1 if doc.pages and min(doc.pages) < start else 0
@@ -108,10 +117,12 @@ def _items(doc, page_info, offset=0):
             yield "table", page, item
         elif item.label == DocItemLabel.FORMULA:
             latex = (item.text or item.orig).strip()
-            if latex:
+            if latex and not EQ_NUMBER_RE.match(latex) and not _is_guidance_end_latex(latex):
                 yield "line", page, f"$$ {latex} $$"
         elif item.label in TEXT_LABELS:
-            text = item.text.replace("\xa0", " ").strip()
+            if item.label == DocItemLabel.CAPTION and item.parent and item.parent.cref.startswith("#/tables/"):
+                continue  # 표에 연결된 캡션은 표 레코드에 들어가므로 본문 줄로 다시 내보내지 않음
+            text = GUIDANCE_END_RE.sub("", item.text.replace("\xa0", " ")).strip()
             if NOISE_RE.match(text):
                 continue
             # Docling은 목록 기호(a), i))를 marker 필드로 분리하므로 다시 붙여서 계층 인식에 사용
@@ -164,16 +175,25 @@ def parse_docling_json(parts, pdf_path, article_depth=2):
             for kind, pno, obj in _items(d, page_info, _page_offset(d, start)):
                 yield d, kind, pno, obj
 
+    prev_kind, prev_line, prev_cols = None, "", None
     for doc, kind, pno, obj in all_items():
         if kind == "table":
-            caption = obj.caption_text(doc)
+            html, cols = obj.export_to_html(doc), obj.data.num_cols
+            # Docling이 "Table N ..." 캡션을 section_header로 분류해 표에 연결하지 못하는 경우가 많음
+            # → 표 바로 앞 줄이 "Table N ..."이면 그것을 캡션으로 사용
+            caption = obj.caption_text(doc) or (prev_line if prev_kind == "line" and CAPTION_RE.match(prev_line) else "")
             m = CAPTION_RE.match(caption)
-            tables.append({"doc": doc_name, "section": section,
-                           "index": f"Table {m.group(1)}" if m else f"p{pno}-table",
-                           "caption": caption, "html": obj.export_to_html(doc), "page": pno})
+            if not m and prev_kind == "table" and tables and tables[-1]["section"] == section and cols == prev_cols:
+                tables[-1]["html"] += "\n" + html  # 캡션 없이 표 바로 뒤에 이어지는 표 = 다음 페이지로 넘어간 부분
+            else:
+                tables.append({"doc": doc_name, "section": section,
+                               "index": f"Table {m.group(1)}" if m else f"p{pno}-table",
+                               "caption": caption, "html": html, "page": pno})
+            prev_kind, prev_cols = "table", cols
             continue
 
         line = obj
+        prev_kind, prev_line = "line", line
         if m := SECTION_RE.match(line):
             if pno is not None:
                 chapter, chapter_title, _ = page_info(pno)
@@ -242,11 +262,25 @@ def to_chunks(articles):
     return chunks
 
 
+def _section_of(table_lookup, doc, prefix):
+    """'Pt.2 Ch.1 Section 1 ' 로 시작하는 section 키 (section 키에는 제목까지 붙어 있음)."""
+    return next((s for d, s, _ in table_lookup if d == doc and s.startswith(prefix)), None)
+
+
 def referenced_tables(chunk, table_lookup):
-    """chunk 본문에 'Table N'이 있으면 같은 문서·같은 Section의 표를 반환."""
+    """chunk 본문의 표 참조에 해당하는 표를 반환 (같은 문서 안에서).
+    'Table N' = 같은 Section, 'Sec.2 Table N' = 같은 Chapter의 Section 2, 'Ch.2 Sec.1 Table N' = 같은 Part의 Ch.2 Section 1"""
     found = []
-    for n in dict.fromkeys(TABLE_REF_RE.findall(chunk["content"])):
-        t = table_lookup.get((chunk["doc"], chunk["section"], f"Table {n}"))
+    here = SECTION_KEY_RE.match(chunk["section"])
+    for ch, sec, n in dict.fromkeys(TABLE_REF_RE.findall(chunk["content"])):
+        section = chunk["section"]
+        if ch and not sec:  # "Ch.2 Table 1"처럼 Section 없이 Chapter만 있는 참조는 대상을 특정할 수 없음
+            continue
+        if sec and here:
+            pt, cur_ch, _ = here.groups()
+            ch = ch.replace(" ", "") if ch else cur_ch
+            section = _section_of(table_lookup, chunk["doc"], f"{pt} {ch} Section {sec} ")
+        t = table_lookup.get((chunk["doc"], section, f"Table {n}"))
         if t:
             found.append(t)
     return found

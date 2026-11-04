@@ -91,7 +91,7 @@ Colab 세션은 끊길 수 있으니 `data/`, `models/`를 Google Drive에 두�
 - `node == article_no`이면 Article 전체 chunk, 그 외는 nested chunk (논문 Fig.3~5)
 - `title`은 출처로 표시, `content`만 임베딩
 
-`tables.jsonl`: `{"doc", "section", "index": "Table 1", "caption", "html", "page"}`. 검색된 chunk 본문에 `Table N`이 있으면 같은 문서·같은 Section의 표 HTML이 LLM 입력에 첨부됩니다 (논문 Fig.6).
+`tables.jsonl`: `{"doc", "section", "index": "Table 1", "caption", "html", "page"}`. 검색된 chunk 본문에 `Table N`이 있으면 같은 Section의 표, `Sec.2 Table N` / `Ch.2 Sec.1 Table N`이면 해당 Section의 표 HTML이 LLM 입력에 첨부됩니다 (논문 Fig.6). 여러 페이지에 걸친 표는 하나로 합쳐지며(`html`에 `<table>`이 여러 개), Docling이 캡션을 제목으로 잘못 분류한 경우 표 바로 앞 줄의 `Table N ...`을 캡션으로 씁니다.
 
 ## 논문과 다른 점 / 제약
 
@@ -101,9 +101,9 @@ Colab 세션은 끊길 수 있으니 `data/`, `models/`를 Google Drive에 두�
    - PDF 하나에 여러 Chapter가 합쳐져 있어, **PDF 책갈피**로 페이지별 Chapter를 정하고 `Section ...` 책갈피 구간만 본문으로 씁니다 (표지·Changes·Contents 제외). 책갈피가 없는 PDF는 전체를 본문으로 봅니다.
    - Section 번호가 Chapter마다 다시 시작하므로 `section` 값은 `Pt.2 Ch.1 Section 3 TESTING PROCEDURES`처럼 Chapter를 포함합니다.
    - 계층: `SECTION N` → `1` → `1.1`(Article) → `1.1.1` → `1.1.1.1` / `a)`. `—` 글머리 목록과 Guidance note는 해당 조항 본문에 포함됩니다.
-   - 매 페이지 워터마크(`This copy of the document is intended for use by …`), 우측 세로 표기, `---e-n-d---o-f---…` 표시는 제거합니다.
+   - 매 페이지 워터마크(`This copy of the document is intended for use by …`), 우측 세로 표기, `---e-n-d---o-f---…` 표시는 제거합니다. 이 표시가 수식으로 잘못 인식된 LaTeX와 수식 번호만 있는 `(1)` 수식도 버립니다.
    - 확인 결과: 책갈피의 Article(`1.1` 수준) 642개를 모두 같은 번호·Section·Chapter로 복원했습니다. 단 이 검증은 Docling 대신 PDF 텍스트 라인으로 한 것이므로, **실제 01 실행 후 `chunks.jsonl`과 `.md`를 직접 확인하세요.**
-4. 다른 Section/문서의 표를 참조하는 경우(`Sec.2 Table 3`)와 조항 간 상호참조는 처리하지 않습니다 (논문 future work).
+4. 다른 Part(PDF)의 표 참조와 조항 간 상호참조(`see [2.3.4]`)는 처리하지 않습니다 (논문 future work).
 5. Top-k에 같은 Article의 상위·하위 chunk가 함께 들어올 수 있습니다 (논문에 처리 방법 언급 없음).
 
 ## 비용·시간 참고 (논문 설정 기준)
