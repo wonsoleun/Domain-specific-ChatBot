@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sea-Ya</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%231a73e8'/%3E%3Cstop offset='1' stop-color='%2300acc1'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Cpath d='M5.5 13.5q3.5-4.5 7 0t7 0 7 0' fill='none' stroke='white' stroke-width='2.6' stroke-linecap='round'/%3E%3Cpath d='M5.5 20.5q3.5-4.5 7 0t7 0 7 0' fill='none' stroke='white' stroke-opacity='.65' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  /* Google 색감: 흰 배경, 파랑 #1a73e8, 연한 회청색 #f0f4f9 */
+  :root {
+    --bg: #ffffff; --side: #f0f4f9; --soft: #f0f4f9; --hover: #e1e5ea; --line: #dadce0;
+    --text: #1f1f1f; --muted: #5f6368; --blue: #1a73e8; --blue-weak: #e8f0fe; --blue-text: #0b57d0;
+    --on-blue: #ffffff; --card: #ffffff;
+    --g-blue: #4285f4; --g-red: #ea4335; --g-yellow: #fbbc04; --g-green: #34a853;
+    --err-bg: #fce8e6; --err-text: #c5221f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #131314; --side: #1e1f20; --soft: #1e1f20; --hover: #333537; --line: #3c4043;
+      --text: #e3e3e3; --muted: #9aa0a6; --blue: #8ab4f8; --blue-weak: #1f3760; --blue-text: #a8c7fa;
+      --on-blue: #131314; --card: #1e1f20; --err-bg: #3c1f1e; --err-text: #f28b82;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #131314; --side: #1e1f20; --soft: #1e1f20; --hover: #333537; --line: #3c4043;
+    --text: #e3e3e3; --muted: #9aa0a6; --blue: #8ab4f8; --blue-weak: #1f3760; --blue-text: #a8c7fa;
+    --on-blue: #131314; --card: #1e1f20; --err-bg: #3c1f1e; --err-text: #f28b82;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.65 Roboto, "Noto Sans KR", system-ui, "Malgun Gothic", sans-serif; overflow: hidden; }
+  button { font: inherit; color: inherit; }
+  .icon { width: 20px; height: 20px; flex: none; }
+  .icon-btn { width: 38px; height: 38px; border-radius: 50%; border: 0; background: none; display: grid; place-items: center; cursor: pointer; color: var(--muted); flex: none; }
+  .icon-btn:hover { background: var(--hover); color: var(--text); }
+
+  /* ── 고정 레이아웃: 사이드바 | 대화 | 상세 패널 ── */
+  .app { height: 100vh; height: 100dvh; display: grid; grid-template-columns: 272px minmax(0, 1fr); }
+  .app.detail-open { grid-template-columns: 272px minmax(0, 1fr) minmax(360px, 44%); }
+  .app.side-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
+  .app.side-collapsed.detail-open { grid-template-columns: 0 minmax(0, 1fr) minmax(360px, 44%); }
+
+  /* ── 사이드바 ── */
+  .sidebar { background: var(--side); display: flex; flex-direction: column; padding: 12px; min-width: 0; overflow: hidden; }
+  .app.side-collapsed .sidebar { padding: 0; }
+  .side-top { display: flex; align-items: center; gap: 4px; padding: 2px 2px 14px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 500; flex: 1; min-width: 0; padding-left: 6px; }
+  .logo { width: 32px; height: 32px; flex: none; }
+  .brand-name { letter-spacing: -.01em; }
+  .brand-name b { font-weight: 700; color: var(--blue-text); }
+  .new-chat { display: flex; align-items: center; gap: 10px; border: 0; border-radius: 999px; padding: 10px 16px; cursor: pointer; background: var(--bg); color: var(--muted); font-weight: 500; width: fit-content; }
+  .new-chat:hover { background: var(--hover); color: var(--text); }
+  .side-label { margin: 20px 12px 6px; font-size: 13px; font-weight: 500; color: var(--text); }
+  .history { flex: 1; overflow-y: auto; }
+  .conv { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; cursor: pointer; border: 0; background: none; border-radius: 999px; padding: 7px 8px 7px 14px; }
+  .conv:hover { background: var(--hover); }
+  .conv.active { background: var(--blue-weak); color: var(--blue-text); }
+  .conv-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+  .conv-del { opacity: 0; width: 28px; height: 28px; }
+  .conv:hover .conv-del, .conv:focus-within .conv-del { opacity: 1; }
+  .conv-del:hover { color: var(--err-text); background: none; }
+  .empty-history { color: var(--muted); font-size: 13px; padding: 4px 14px; }
+  .side-foot { display: flex; align-items: center; justify-content: space-between; padding-top: 8px; }
+  .text-btn { border: 0; background: none; cursor: pointer; color: var(--muted); padding: 8px 12px; border-radius: 999px; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+  .text-btn:hover { background: var(--hover); color: var(--text); }
+
+  /* ── 메인(대화) ── */
+  .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; position: relative; }
+  .topbar { display: flex; align-items: center; gap: 6px; padding: 10px 14px; min-height: 58px; }
+  .topbar .title { font-size: 16px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .open-side { display: none; }
+  .app.side-collapsed .open-side { display: grid; }
+  .scroll { flex: 1; overflow-y: auto; min-height: 0; position: relative; }
+  [hidden] { display: none !important; }
+  .thread { max-width: 780px; margin: 0 auto; padding: 8px 24px 24px; display: flex; flex-direction: column; gap: 28px; }
+
+  /* 빈 화면: 인사 + 가운데 입력창 */
+  .app.empty .main { justify-content: center; padding-bottom: 8vh; }
+  .app.empty .topbar { position: absolute; top: 0; left: 0; right: 0; }
+  .app.empty .scroll { flex: 0 0 auto; overflow: visible; }
+  .app.empty .thread { width: 100%; padding-bottom: 20px; }
+  .greet { text-align: center; padding-bottom: 8px; }
+  .greet h1 { margin: 0; font-size: clamp(26px, 4vw, 36px); font-weight: 500; letter-spacing: -.01em; }
+  .greet h1 span { background: linear-gradient(90deg, #1a73e8, #00acc1); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .greet p { margin: 6px 0 0; color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+  .chip { border: 1px solid var(--line); background: var(--bg); border-radius: 12px; padding: 8px 14px; cursor: pointer; font-size: 14px; color: var(--muted); text-align: left; }
+  .chip:hover { background: var(--soft); color: var(--text); }
+
+  /* 메시지 */
+  .user-msg { align-self: flex-end; max-width: 80%; background: var(--soft); border-radius: 20px 4px 20px 20px; padding: 10px 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .bot-msg { display: flex; gap: 14px; align-items: flex-start; }
+  .bot-av { width: 30px; height: 30px; flex: none; display: grid; place-items: center; margin-top: 1px; }
+  .bot-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+  .bot-body p { margin: 0; }
+  .bot-body .meta { color: var(--muted); font-size: 13px; }
+  .answer { white-space: pre-wrap; }
+  .err { background: var(--err-bg); color: var(--err-text); border-radius: 12px; padding: 10px 14px; }
+  .hits { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .hit { display: flex; gap: 12px; width: 100%; text-align: left; cursor: pointer; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; min-width: 0; transition: background .12s, border-color .12s; }
+  .hit:hover { background: var(--soft); }
+  .hit.selected { border-color: var(--blue); background: var(--blue-weak); }
+  .hit-rank { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--blue-weak); color: var(--blue-text); font-weight: 700; font-size: 13px; }
+  .hit.selected .hit-rank { background: var(--blue); color: var(--on-blue); }
+  .hit-body { display: block; min-width: 0; flex: 1; }
+  .hit-title { display: flex; gap: 8px; align-items: baseline; font-weight: 500; }
+  .hit-title span:first-child { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hit-score { flex: none; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 400; }
+  .hit-sub { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hit-snip { font-size: 13px; color: var(--muted); margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .tag { font-size: 12px; padding: 1px 10px; border-radius: 999px; background: var(--soft); color: var(--muted); }
+  .hit:hover .tag, .hit.selected .tag { background: var(--bg); }
+  .tag.t { background: var(--blue-weak); color: var(--blue-text); }
+  .typing { display: inline-flex; gap: 5px; padding: 8px 0; }
+  .typing i { width: 8px; height: 8px; border-radius: 50%; animation: blink 1.2s infinite; }
+  .typing i:nth-child(1) { background: var(--g-blue); } .typing i:nth-child(2) { background: var(--g-red); animation-delay: .15s; }
+  .typing i:nth-child(3) { background: var(--g-yellow); animation-delay: .3s; } .typing i:nth-child(4) { background: var(--g-green); animation-delay: .45s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-4px); } }
+
+  /* ── 입력창 (검색 모델 선택 포함) ── */
+  .composer-wrap { padding: 4px 24px 14px; }
+  .composer { max-width: 780px; margin: 0 auto; background: var(--soft); border-radius: 28px; padding: 10px 10px 8px 22px; border: 1px solid transparent; }
+  .composer:focus-within { background: var(--bg); border-color: var(--line); box-shadow: 0 1px 6px rgba(32,33,36,.18); }
+  #q { width: 100%; border: 0; background: none; resize: none; color: var(--text); font: inherit; font-size: 16px; padding: 6px 0; max-height: 180px; outline: none; display: block; }
+  #q::placeholder { color: var(--muted); }
+  .composer-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; margin-left: -10px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; background: var(--bg); }
+  .seg label { padding: 3px 14px; border-radius: 999px; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--muted); }
+  .seg input { display: none; }
+  .seg label:has(input:checked) { background: var(--blue-weak); color: var(--blue-text); }
+  .seg label:has(input:disabled) { opacity: .4; cursor: not-allowed; }
+  .pill-select { border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--muted); font: inherit; font-size: 13px; padding: 4px 10px; cursor: pointer; }
+  .gen { font-size: 13px; color: var(--muted); display: inline-flex; gap: 4px; align-items: center; }
+  .send { margin-left: auto; width: 40px; height: 40px; border-radius: 50%; border: 0; cursor: pointer; display: grid; place-items: center; background: var(--blue); color: var(--on-blue); flex: none; }
+  .send:disabled { background: var(--hover); color: var(--muted); cursor: default; }
+  .disclaimer { text-align: center; font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+  /* ── 오른쪽 상세 패널 ── */
+  .detail { display: none; flex-direction: column; min-width: 0; min-height: 0; border-left: 1px solid var(--line); background: var(--bg); }
+  .app.detail-open .detail { display: flex; }
+  .detail-head { display: flex; align-items: flex-start; gap: 8px; padding: 14px 14px 12px 22px; border-bottom: 1px solid var(--line); }
+  .detail-head .grow { flex: 1; min-width: 0; }
+  .detail-head h3 { margin: 4px 0 2px; font-size: 18px; font-weight: 500; line-height: 1.4; }
+  .crumbs { font-size: 12px; color: var(--muted); }
+  .detail-body { overflow-y: auto; padding: 16px 22px 28px; }
+  .content p { margin: 0 0 10px; }
+  .content .katex-display, .tablebox { overflow-x: auto; }
+  .section-title { margin: 22px 0 8px; font-size: 13px; font-weight: 500; color: var(--muted); }
+  .tablebox { border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin-bottom: 12px; }
+  .tablebox .cap { font-size: 13px; font-weight: 500; margin-bottom: 8px; }
+  table { border-collapse: collapse; font-size: 12.5px; }
+  th, td { border: 1px solid var(--line); padding: 5px 9px; vertical-align: top; text-align: left; }
+  th { background: var(--soft); font-weight: 500; }
+  .scrim { display: none; }
+
+  /* ── 반응형 ── */
+  @media (max-width: 1100px) {
+    .app.detail-open, .app.side-collapsed.detail-open { grid-template-columns: 272px minmax(0, 1fr); }
+    .app.side-collapsed.detail-open { grid-template-columns: 0 minmax(0, 1fr); }
+    .detail { position: fixed; top: 0; right: 0; bottom: 0; width: min(520px, 100vw); z-index: 30; box-shadow: -8px 0 30px rgba(0,0,0,.18); }
+    .app.detail-open .scrim { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.25); z-index: 25; }
+  }
+  @media (max-width: 760px) {
+    .app, .app.detail-open, .app.side-collapsed, .app.side-collapsed.detail-open { grid-template-columns: minmax(0, 1fr); }
+    .sidebar { position: fixed; top: 0; bottom: 0; left: 0; width: min(290px, 85vw); z-index: 40; transform: translateX(-105%); transition: transform .2s; padding: 12px !important; }
+    .app.side-open .sidebar { transform: none; box-shadow: 8px 0 30px rgba(0,0,0,.2); }
+    .app.side-open .scrim { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.25); z-index: 35; }
+    .open-side { display: grid !important; }
+    .thread { padding: 8px 16px 20px; }
+    .composer-wrap { padding: 4px 12px 10px; }
+    .user-msg { max-width: 90%; }
+    .bot-msg { gap: 10px; }
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
+  <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M9.5 4.5v15" stroke="currentColor" stroke-width="1.8"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" fill="none"/></symbol>
+  <!-- Sea-Ya 로고: 파란 바다 위 두 줄 물결(~) -->
+  <linearGradient id="g-sea" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1a73e8"/><stop offset="1" stop-color="#00acc1"/></linearGradient>
+  <symbol id="i-logo" viewBox="0 0 32 32">
+    <rect width="32" height="32" rx="9" fill="url(#g-sea)"/>
+    <path d="M5.5 13.5q3.5-4.5 7 0t7 0 7 0" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M5.5 20.5q3.5-4.5 7 0t7 0 7 0" fill="none" stroke="#fff" stroke-opacity=".65" stroke-width="2.6" stroke-linecap="round"/>
+  </symbol>
+</svg>
+
+<div class="app empty" id="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="side-top">
+      <div class="brand">
+        <svg class="logo" aria-hidden="true"><use href="#i-logo"/></svg>
+        <span class="brand-name"><b>Sea</b>-Ya</span>
+      </div>
+      <button class="icon-btn" id="collapse" type="button" aria-label="사이드바 닫기" title="사이드바 닫기"><svg class="icon"><use href="#i-panel"/></svg></button>
+    </div>
+    <button class="new-chat" id="newChat" type="button"><svg class="icon"><use href="#i-plus"/></svg>새 대화</button>
+    <div class="side-label">최근</div>
+    <div class="history" id="history"></div>
+    <div class="side-foot">
+      <button class="text-btn" id="theme" type="button"><svg class="icon" style="width:18px;height:18px"><use href="#i-moon"/></svg><span>시스템</span></button>
+      <button class="text-btn" id="clearAll" type="button">전체 삭제</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <button class="icon-btn open-side" id="openSide" type="button" aria-label="사이드바 열기"><svg class="icon"><use href="#i-menu"/></svg></button>
+      <div class="title" id="convTitle"></div>
+    </div>
+    <div class="scroll" id="scroll">
+      <div class="thread" id="thread" aria-live="polite"></div>
+    </div>
+    <div class="composer-wrap">
+      <form class="composer" id="form">
+        <textarea id="q" rows="1" placeholder="DNV 규정에 대해 영어로 질문하세요"></textarea>
+        <div class="composer-row">
+          <div class="seg" id="indexSeg" title="검색 모델">
+            <label><input type="radio" name="index" value="base">base</label>
+            <label><input type="radio" name="index" value="adapted">adapted</label>
+          </div>
+          <select class="pill-select" id="k" title="결과 수"><option value="3">3개</option><option value="5" selected>5개</option><option value="10">10개</option></select>
+          <label class="gen" id="genWrap" hidden><input type="checkbox" id="gen"> 답변 생성</label>
+          <button class="send" id="go" type="submit" aria-label="보내기" disabled><svg class="icon"><use href="#i-send"/></svg></button>
+        </div>
+      </form>
+      <div class="disclaimer" id="statusLine">연결 중…</div>
+    </div>
+  </main>
+
+  <aside class="detail" id="detail">
+    <div class="detail-head">
+      <div class="grow"><h3 id="detailTitle"></h3><div class="crumbs" id="detailCrumbs"></div></div>
+      <button class="icon-btn" id="closeDetail" type="button" aria-label="닫기"><svg class="icon"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="detail-body" id="detailBody"></div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+</div>
+
+<script>
+const EXAMPLES = [
+  "What is the minimum thickness of bottom plating?",
+  "When is impact testing required for steel plates?",
+  "How is the machine speed limited in tensile testing?",
+  "What are the requirements for welding procedure qualification?",
+];
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+};
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const LOGO = `<svg class="icon" style="width:28px;height:28px" aria-hidden="true"><use href="#i-logo"/></svg>`;
+
+/* ── 테마 ── */
+let theme = store.get("theme") || "system";
+function applyTheme() {
+  if (theme === "system") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = theme;
+  $("theme").querySelector("span").textContent = { system: "시스템", light: "라이트", dark: "다크" }[theme];
+}
+$("theme").onclick = () => { theme = { system: "light", light: "dark", dark: "system" }[theme]; store.set("theme", theme); applyTheme(); };
+applyTheme();
+
+/* ── 사이드바 열고 닫기 ── */
+const narrow = () => matchMedia("(max-width: 760px)").matches;
+$("collapse").onclick = () => {
+  if (narrow()) $("app").classList.remove("side-open");
+  else { $("app").classList.add("side-collapsed"); store.set("side", "collapsed"); }
+};
+$("openSide").onclick = () => {
+  if (narrow()) $("app").classList.add("side-open");
+  else { $("app").classList.remove("side-collapsed"); store.set("side", "open"); }
+};
+if (store.get("side") === "collapsed") $("app").classList.add("side-collapsed");
+
+/* ── 대화 기록 (이 브라우저의 localStorage에만 저장) ── */
+let convs = [];
+try { convs = JSON.parse(store.get("convs") || "[]"); } catch { convs = []; }
+let current = null;   // 현재 대화 id (null = 새 대화)
+let pending = null;   // 검색 중인 대화 id
+let selected = null;  // 상세 패널에 열린 결과 "메시지번호:결과번호"
+const save = () => {
+  convs = convs.slice(0, 30);
+  try { localStorage.setItem("convs", JSON.stringify(convs)); }
+  catch { convs = convs.slice(0, 10); store.set("convs", JSON.stringify(convs)); }  // 용량 초과 시 오래된 대화 정리
+};
+const getConv = () => convs.find((c) => c.id === current);
+
+function renderHistory() {
+  const h = $("history");
+  h.innerHTML = convs.length ? "" : `<div class="empty-history">아직 대화가 없어요.</div>`;
+  for (const c of convs) {
+    const row = document.createElement("div");
+    row.className = "conv" + (c.id === current ? " active" : "");
+    row.tabIndex = 0;
+    row.title = c.title;
+    row.innerHTML = `<span class="conv-title">${esc(c.title)}</span>
+      <button class="icon-btn conv-del" type="button" aria-label="삭제"><svg class="icon" style="width:16px;height:16px"><use href="#i-trash"/></svg></button>`;
+    row.onclick = () => openConv(c.id);
+    row.onkeydown = (e) => { if (e.key === "Enter") openConv(c.id); };
+    row.querySelector(".conv-del").onclick = (e) => {
+      e.stopPropagation();
+      convs = convs.filter((x) => x.id !== c.id); save();
+      if (current === c.id) openConv(null); else renderHistory();
+    };
+    h.append(row);
+  }
+}
+
+function openConv(id) {
+  current = id; closeDetail();
+  $("app").classList.remove("side-open");
+  renderHistory(); renderThread(true);
+  $("q").focus();
+}
+$("newChat").onclick = () => openConv(null);
+$("clearAll").onclick = () => { if (confirm("모든 대화를 삭제할까요?")) { convs = []; save(); openConv(null); } };
+
+/* ── 본문 렌더링 ── */
+// 이스케이프 → Markdown 표(캡션 없는 표가 본문에 인라인된 것) → 문단. 수식($$…$$)은 KaTeX가 렌더링.
+function renderContent(text) {
+  const out = []; let tbl = null;
+  const flush = () => {
+    if (!tbl) return;
+    const rows = tbl.filter((r) => !/^\|[\s:|-]+\|?$/.test(r));
+    const cells = (r) => r.replace(/^\||\|$/g, "").split("|").map((c) => esc(c.trim()));
+    out.push(`<div class="tablebox"><table>${rows.map((r, i) => {
+      const tag = i === 0 ? "th" : "td";
+      return "<tr>" + cells(r).map((c) => `<${tag}>${c}</${tag}>`).join("") + "</tr>";
+    }).join("")}</table></div>`);
+    tbl = null;
+  };
+  for (const line of text.split("\n")) {
+    if (line.trim().startsWith("|")) { (tbl ||= []).push(line.trim()); continue; }
+    flush();
+    if (line.trim()) out.push(`<p>${esc(line)}</p>`);
+  }
+  flush();
+  return out.join("");
+}
+
+// 카드 미리보기: 표 줄 제외, 220자로 자르되 수식 $$가 짝이 맞게
+function snippet(text) {
+  let s = text.split("\n").filter((l) => !l.trim().startsWith("|")).join(" ");
+  if (s.length > 220) {
+    s = s.slice(0, 220);
+    if ((s.match(/\$\$/g) || []).length % 2) s = s.slice(0, s.lastIndexOf("$$"));
+    s += "…";
+  }
+  return esc(s);
+}
+
+// 표 HTML(Docling 출력)은 허용된 태그·속성만 남겨서 삽입
+const ALLOWED = new Set(["TABLE", "THEAD", "TBODY", "TR", "TH", "TD", "BR", "SUP", "SUB", "B", "I", "P"]);
+function sanitizeTable(html) {
+  const tpl = document.createElement("template");
+  tpl.innerHTML = html;
+  const walk = (node) => {
+    for (const el of [...node.children]) {
+      if (!ALLOWED.has(el.tagName)) { el.replaceWith(document.createTextNode(el.textContent)); continue; }
+      for (const a of [...el.attributes]) if (a.name !== "colspan" && a.name !== "rowspan") el.removeAttribute(a.name);
+      walk(el);
+    }
+  };
+  walk(tpl.content);
+  return tpl.innerHTML;
+}
+
+function renderMath(el) {
+  if (window.renderMathInElement) {
+    renderMathInElement(el, { delimiters: [{ left: "$$", right: "$$", display: false }], throwOnError: false });
+  }
+}
+window.addEventListener("load", () => renderMath($("thread")));  // KaTeX가 늦게 로드된 경우
+
+/* ── 대화 화면 ── */
+function hitCard(r, mi, ri) {
+  const head = r.title.split(" > ").pop();
+  const node = r.node === r.article_no ? `Article ${r.article_no}` : r.node;
+  const sel = selected === `${mi}:${ri}` ? " selected" : "";
+  return `<button class="hit${sel}" type="button" data-m="${mi}" data-r="${ri}">
+    <span class="hit-rank">${r.rank}</span>
+    <span class="hit-body">
+      <span class="hit-title"><span>${esc(head)}</span><span class="hit-score">${r.score.toFixed(1)}</span></span>
+      <span class="hit-sub">${esc(r.section)}</span>
+      <span class="hit-snip">${snippet(r.content)}</span>
+      <span class="tags">
+        <span class="tag">${esc(node)}</span><span class="tag">p.${r.page}</span>
+        ${r.tables.length ? `<span class="tag t">표 ${r.tables.length}개</span>` : ""}
+      </span>
+    </span>
+  </button>`;
+}
+
+function botMsg(inner) {
+  return `<div class="bot-msg"><div class="bot-av">${LOGO}</div><div class="bot-body">${inner}</div></div>`;
+}
+
+function renderThread(scrollToEnd = false) {
+  const conv = getConv();
+  const t = $("thread");
+  $("app").classList.toggle("empty", !conv);
+  $("convTitle").textContent = conv ? conv.title : "";
+  if (!conv) {
+    t.innerHTML = `
+      <div class="greet"><h1><span>무엇을 찾아볼까요?</span></h1>
+        <p>DNV 선박 규정에서 질문과 관련된 조항과 참조 표를 찾아 드려요.</p></div>
+      <div class="chips">${EXAMPLES.map((e) => `<button class="chip" type="button">${esc(e)}</button>`).join("")}</div>`;
+    return;
+  }
+  t.innerHTML = conv.messages.map((m, mi) => {
+    if (m.role === "user") return `<div class="user-msg">${esc(m.text)}</div>`;
+    if (m.error) return botMsg(`<div class="err">${esc(m.error)}</div>`);
+    const lead = m.results.length
+      ? `<p>가장 관련 있는 조항 <b>${m.results.length}개</b>를 찾았어요. 조항을 누르면 오른쪽에 전문과 참조 표가 열려요.</p>`
+      : `<p>관련 조항을 찾지 못했어요.</p>`;
+    return botMsg(`
+      ${m.answer ? `<div class="answer">${esc(m.answer)}</div>` : ""}
+      ${lead}
+      <div class="hits">${m.results.map((r, ri) => hitCard(r, mi, ri)).join("")}</div>
+      <div class="meta">${esc(m.index)} 모델 · ${m.elapsed}초</div>`);
+  }).join("");
+  if (pending === current) t.insertAdjacentHTML("beforeend", botMsg(`<div class="typing"><i></i><i></i><i></i><i></i></div>`));
+  renderMath(t);
+  if (scrollToEnd) {  // 마지막 질문이 위쪽에 보이도록
+    const users = t.querySelectorAll(".user-msg");
+    const last = users[users.length - 1];
+    $("scroll").scrollTop = last ? last.offsetTop - 12 : 0;
+  }
+}
+
+$("thread").addEventListener("click", (e) => {
+  const chip = e.target.closest(".chip");
+  if (chip) { $("q").value = chip.textContent; send(); return; }
+  const hit = e.target.closest(".hit");
+  if (hit) {
+    selected = `${hit.dataset.m}:${hit.dataset.r}`;
+    document.querySelectorAll(".hit.selected").forEach((h) => h.classList.remove("selected"));
+    hit.classList.add("selected");
+    openDetail(getConv().messages[hit.dataset.m].results[hit.dataset.r]);
+  }
+});
+
+/* ── 오른쪽 상세 패널 ── */
+function openDetail(r) {
+  const parts = r.title.split(" > ");
+  $("detailTitle").textContent = parts.pop();
+  $("detailCrumbs").textContent = parts.slice(1).join(" › ");
+  const node = r.node === r.article_no ? `Article ${r.article_no} 전체` : `${r.node} (Article ${r.article_no})`;
+  $("detailBody").innerHTML = `
+    <div class="tags" style="margin:0 0 16px">
+      <span class="tag">${esc(r.doc)}</span><span class="tag">${esc(node)}</span><span class="tag">p.${r.page}</span><span class="tag">점수 ${r.score.toFixed(2)}</span>
+    </div>
+    <div class="content">${renderContent(r.content)}</div>
+    ${r.tables.length ? `<div class="section-title">참조된 표</div>` + r.tables.map((t) =>
+      `<div class="tablebox"><div class="cap">${esc(t.caption || "")} · p.${t.page}</div>${sanitizeTable(t.html)}</div>`).join("") : ""}`;
+  renderMath($("detailBody"));
+  $("detailBody").scrollTop = 0;
+  $("app").classList.add("detail-open");
+}
+function closeDetail() {
+  selected = null;
+  $("app").classList.remove("detail-open");
+  document.querySelectorAll(".hit.selected").forEach((h) => h.classList.remove("selected"));
+}
+$("closeDetail").onclick = closeDetail;
+$("scrim").onclick = () => { closeDetail(); $("app").classList.remove("side-open"); };
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDetail(); });
+
+/* ── 서버 상태 ── */
+async function loadStatus() {
+  try {
+    const s = await (await fetch("/api/status")).json();
+    const saved = store.get("index");
+    let pick = null;
+    for (const input of document.querySelectorAll("#indexSeg input")) {
+      input.disabled = !s.indexes[input.value];
+      input.parentElement.title = input.disabled ? `${input.value} 인덱스가 아직 없어요` : "";
+      if (!input.disabled && (pick === null || input.value === saved)) pick = input;
+    }
+    if (pick) pick.checked = true;
+    $("genWrap").hidden = !s.generate;
+    if ([...$("k").options].some((o) => o.value === String(s.top_k))) $("k").value = String(s.top_k);
+    $("statusLine").textContent = pick
+      ? `DNV-RU-SHIP 조항 ${s.n_chunks.toLocaleString("ko-KR")}개에서 검색합니다. 결과는 원문 확인용 참고 자료예요.`
+      : "검색 인덱스가 없어요. python scripts/02_build_index.py --model base를 먼저 실행하세요.";
+  } catch {
+    $("statusLine").textContent = "서버에 연결할 수 없어요.";
+  }
+}
+document.querySelectorAll("#indexSeg input").forEach((i) => i.addEventListener("change", () => store.set("index", i.value)));
+
+/* ── 보내기 ── */
+async function send() {
+  const query = $("q").value.trim();
+  const index = document.querySelector("#indexSeg input:checked")?.value;
+  if (!query || pending) return;
+  if (!current) {
+    const c = { id: String(Date.now()), title: query, created: Date.now(), messages: [] };
+    convs.unshift(c); current = c.id;
+  }
+  const conv = getConv();
+  conv.messages.push({ role: "user", text: query });
+  convs = [conv, ...convs.filter((c) => c !== conv)];
+  save();
+  $("q").value = ""; onInput();
+  pending = conv.id;
+  renderHistory(); renderThread(true);
+
+  const generate = !$("genWrap").hidden && $("gen").checked;
+  const t0 = performance.now();
+  let bot;
+  try {
+    if (!index) throw new Error("사용 가능한 검색 인덱스가 없어요. 02_build_index.py --model base를 먼저 실행하세요.");
+    const res = await fetch("/api/search", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, index, k: Number($("k").value), generate }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    bot = { role: "bot", index: data.index, results: data.results, answer: data.answer,
+            elapsed: ((performance.now() - t0) / 1000).toFixed(1) };
+  } catch (e) {
+    bot = { role: "bot", error: String(e.message || e) };
+  }
+  conv.messages.push(bot);
+  save();
+  pending = null; onInput();
+  if (current === conv.id) renderThread(true);
+}
+
+function onInput() {
+  const q = $("q");
+  q.style.height = "auto"; q.style.height = Math.min(q.scrollHeight, 180) + "px";
+  $("go").disabled = !q.value.trim() || !!pending;
+}
+$("q").addEventListener("input", onInput);
+$("form").onsubmit = (e) => { e.preventDefault(); send(); };
+$("q").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
+});
+
+renderHistory(); renderThread();
+// ?q=... 로 열면 상태 확인 후 바로 질문 (데모·공유 링크용), ?open=1이면 첫 결과 상세까지 표시
+loadStatus().then(() => {
+  const params = new URLSearchParams(location.search);
+  if (!params.get("q")) return;
+  $("q").value = params.get("q");
+  history.replaceState(null, "", location.pathname);
+  send().then(() => { if (params.get("open")) document.querySelector(".hit")?.click(); });
+});
+</script>
+</body>
+</html>

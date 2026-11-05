@@ -10,3 +10,5 @@ transformers>=4.43
 accelerate
 bitsandbytes
 openai>=1.0
+fastapi
+uvicorn

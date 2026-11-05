@@ -9,3 +9,6 @@ requires-python = ">=3.10"
 
 [tool.setuptools]
 packages = ["shiprag"]
+
+[tool.setuptools.package-data]
+shiprag = ["static/*"]

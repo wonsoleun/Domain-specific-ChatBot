@@ -43,6 +43,15 @@ python scripts/05_ask.py --query "What is the minimum thickness of bottom platin
 
 검색만 확인할 때는 `--no-generate`, base 모델과 비교할 때는 `--index base`를 붙입니다. `--query`를 생략하면 대화형 모드로 실행되어 모델을 한 번만 로드합니다.
 
+### 웹 UI
+
+```bash
+python scripts/06_web.py              # 검색만 (CPU로 충분) → http://127.0.0.1:8000
+python scripts/06_web.py --generate   # LLaMA 답변 생성까지 (GPU 필요)
+```
+
+서비스 이름은 **Sea-Ya**입니다. 화면은 채팅 서비스처럼 구성되어 있습니다(왼쪽 대화 목록 | 가운데 대화 | 오른쪽 조항 상세). 질문(영문)을 보내면 Top-k 조항이 카드로 나옵니다(출처 Section, 노드 번호, 페이지, 점수, 참조 표 개수). 카드를 누르면 오른쪽 패널에 조항 전문(수식은 KaTeX로 렌더링)과 조항이 참조하는 표(`referenced_tables`)가 열립니다. 검색 모델(base/adapted)과 결과 수는 입력창 안에서 고르고, 대화 목록은 브라우저 localStorage에만 저장됩니다. `http://127.0.0.1:8000/?q=질문`으로 열면 바로 검색합니다(`&open=1`을 붙이면 첫 결과 상세까지 엽니다). 만들어진 인덱스(base/adapted)만 선택할 수 있어서, GPU가 없어 3·4단계를 못 돌린 상태에서도 `02_build_index.py --model base`만 실행하면 사용할 수 있습니다. 나중에 adapted 인덱스를 만들면 같은 화면에서 두 모델의 검색 결과를 비교할 수 있습니다. 백엔드는 FastAPI(`shiprag/web.py`)이고, 화면은 정적 HTML 한 장(`shiprag/static/index.html`)입니다. API는 `GET /api/status`(인덱스 유무, 조항 수), `POST /api/search {"query", "index", "k", "generate"}`입니다.
+
 ### 검색 성능 비교 (선택)
 
 직접 만든 테스트셋(JSONL)으로 base vs adapted를 비교합니다.
@@ -136,8 +145,10 @@ ship-reg-rag/
 │   ├── train.py      # MarginMSE domain adaptation
 │   ├── generate.py   # LLaMA 답변 생성
 │   ├── evaluate.py   # 검색 정확도
+│   ├── web.py        # 웹 UI 백엔드 (FastAPI)
+│   ├── static/       # 웹 UI 화면 (index.html)
 │   └── utils.py
-├── scripts/          # 01 ~ 05 실행 스크립트
+├── scripts/          # 01 ~ 06 실행 스크립트
 └── data/raw/         # DNV PDF (git에 올리지 않음)
 ```
 
