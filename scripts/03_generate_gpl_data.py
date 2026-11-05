@@ -5,7 +5,7 @@
 import argparse
 
 from shiprag.gpl import mine_and_label, synthesize_queries
-from shiprag.utils import load_config, read_jsonl
+from shiprag.utils import load_config, load_table_lookup, read_jsonl
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--config", default="config.yaml")
@@ -14,11 +14,12 @@ args = ap.parse_args()
 cfg = load_config(args.config)
 p, g = cfg["paths"], cfg["gpl"]
 chunks = read_jsonl(p["chunks"])
+table_lookup = load_table_lookup(p["tables"]) if cfg["retriever"].get("embed_tables") else None
 
 if args.step in ("queries", "all"):
     synthesize_queries(chunks, p["queries"], g["openai_model"], g["n_contents"],
-                       g["queries_per_content"], g["workers"], g["seed"])
+                       g["queries_per_content"], g["workers"], g["seed"], table_lookup)
 if args.step in ("label", "all"):
     n = mine_and_label(chunks, p["queries"], p["index_base"], p["triplets"], g["cross_encoder"],
-                       g["negatives_per_query"], g["bottom_ratio"], g["seed"])
+                       g["negatives_per_query"], g["bottom_ratio"], g["seed"], table_lookup)
     print(f"saved {n} triplets to {p['triplets']}")

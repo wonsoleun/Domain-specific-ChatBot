@@ -26,6 +26,8 @@ retriever:
   max_seq_length: 512
   batch_size: 64
   top_k: 5
+  embed_tables: true    # [논문과 다른 점] content 뒤에 참조된 표의 평문을 붙여 임베딩 (false = 논문대로 content만)
+                        # 바꾸면 02(base) → 03 label → 04 → 02(adapted)를 다시 실행해야 함
 
 # 3단계: GPL 학습 데이터 생성 (논문 3.2)
 gpl:

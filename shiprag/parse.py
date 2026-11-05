@@ -6,6 +6,7 @@
   - Article 단위 chunk (Title = 상위 계층 제목 연결, Content = 본문)
   - Article 하위 계층(Paragraph, Sub-paragraph, ...)마다 nested chunk 추가
   - 표는 HTML로 변환해 별도 저장, 본문에서 "Table N"으로 참조되면 생성 단계에서 첨부
+  - [논문과 다른 점] 참조된 표는 평문으로 펼쳐 임베딩 텍스트에도 붙임 (embed_text)
 
 DNV 체계 (DNV-RU-SHIP Pt.2 실제 문서로 확인, config의 parse.article_depth로 조정):
   PDF 하나 = 여러 Chapter    -> PDF 책갈피로 page -> Chapter 매핑, Section 페이지만 본문으로 사용
@@ -18,6 +19,7 @@ DNV 체계 (DNV-RU-SHIP Pt.2 실제 문서로 확인, config의 parse.article_de
   i) ...                     -> 그 하위
 """
 import re
+from html.parser import HTMLParser
 from pathlib import Path
 
 import pypdfium2 as pdfium
@@ -294,3 +296,51 @@ def referenced_tables(chunk, table_lookup):
         if t:
             found.append(t)
     return found
+
+
+class _TableText(HTMLParser):
+    """표 HTML → 행마다 "셀 | 셀 | ..." 평문 (여러 페이지로 합쳐진 <table> 여러 개도 그대로 이어서 처리)."""
+
+    def __init__(self):
+        super().__init__()
+        self.rows, self.cell = [], None
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "tr":
+            self.rows.append([])
+        elif tag in ("td", "th"):
+            self.cell = []
+
+    def handle_endtag(self, tag):
+        if tag in ("td", "th") and self.cell is not None:
+            text = " ".join("".join(self.cell).split())
+            if text and self.rows:
+                self.rows[-1].append(text)
+            self.cell = None
+
+    def handle_data(self, data):
+        if self.cell is not None:
+            self.cell.append(data)
+
+
+def table_to_text(html):
+    parser = _TableText()
+    parser.feed(html)
+    return "\n".join(" | ".join(r) for r in parser.rows if r)
+
+
+def embed_text(chunk, table_lookup):
+    """임베딩용 텍스트 = content + 참조된 표의 평문.
+    DNV는 답(계수·최소값 등)이 표 행에만 있는 경우가 많아, content만 임베딩하면 그 질문에서 정답 chunk가 밀림."""
+    parts = [chunk["content"]]
+    for t in referenced_tables(chunk, table_lookup):
+        body = table_to_text(t["html"])
+        parts.append(body if t["caption"] and t["caption"] in chunk["content"] else f"{t['caption']}\n{body}")
+    return "\n".join(parts)
+
+
+def chunk_texts(chunks, table_lookup=None):
+    """검색·GPL·학습에 쓰는 chunk 텍스트. table_lookup이 None이면 논문대로 content만 사용."""
+    if table_lookup is None:
+        return [c["content"] for c in chunks]
+    return [embed_text(c, table_lookup) for c in chunks]

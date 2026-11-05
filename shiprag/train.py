@@ -9,6 +9,7 @@ import torch
 from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 
+from .parse import chunk_texts
 from .utils import read_jsonl
 
 
@@ -23,13 +24,13 @@ def _split_by_group(group, val_ratio, seed):
 
 def train(base_model, chunks_path, queries_path, triplets_path, out_dir,
           batch_size=64, lr=1e-5, max_steps=30000, eval_every=1000, patience=5,
-          val_ratio=0.01, max_seq_length=256, fp16=True, seed=42):
+          val_ratio=0.01, max_seq_length=256, fp16=True, seed=42, table_lookup=None):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch.manual_seed(seed)
     model = SentenceTransformer(base_model, device=device)
     model.max_seq_length = max_seq_length
 
-    texts = [c["content"] for c in read_jsonl(chunks_path)]
+    texts = chunk_texts(read_jsonl(chunks_path), table_lookup)  # 02 인덱스와 같은 텍스트로 학습
     queries = [q["query"] for q in read_jsonl(queries_path)]
     t = np.load(triplets_path)
     q_idx, pos, neg, margin = t["query"], t["pos"], t["neg"], t["margin"]

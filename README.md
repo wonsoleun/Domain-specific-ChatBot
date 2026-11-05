@@ -89,22 +89,31 @@ Colab 세션은 끊길 수 있으니 `data/`, `models/`를 Google Drive에 두�
 ```
 
 - `node == article_no`이면 Article 전체 chunk, 그 외는 nested chunk (논문 Fig.3~5)
-- `title`은 출처로 표시, `content`만 임베딩
+- `title`은 출처로 표시. 임베딩되는 것은 `content` + 참조된 표의 평문입니다 (아래 [논문과 다른 점](#논문과-다른-점) 1, `retriever.embed_tables: false`면 논문대로 `content`만)
 
 `tables.jsonl`: `{"doc", "section", "index": "Table 1", "caption", "html", "page"}`. 검색된 chunk 본문에 `Table N`이 있으면 같은 Section의 표, `Sec.2 Table N` / `Ch.2 Sec.1 Table N`이면 해당 Section의 표 HTML이 LLM 입력에 첨부됩니다 (논문 Fig.6). 여러 페이지에 걸친 표는 하나로 합쳐지며(`html`에 `<table>`이 여러 개), Docling이 캡션을 제목으로 잘못 분류한 경우 표 바로 앞 줄의 `Table N ...`을 캡션으로 씁니다. 원문에도 캡션이 없는 표(Guidance note 속 작은 표 등)는 참조될 수 없으므로 `tables.jsonl` 대신 해당 조항 `content`에 Markdown 표로 들어갑니다.
 
-## 논문과 다른 점 / 제약
+## 논문과 다른 점
 
-1. **Negative mining**: 논문은 생성 질문 × DB 전체를 cross-encoder로 채점합니다(약 6만 × 15만 = 90억 쌍). 이는 현실적으로 불가능하므로, 하위 30% 구간은 **base bi-encoder 점수**로 정하고 cross-encoder는 실제 학습 쌍의 라벨링에만 씁니다. 또 같은 Article의 chunk는 negative에서 제외합니다(정답 텍스트를 포함할 수 있음).
-2. **수식 → LaTeX**: 논문은 변환 방법을 밝히지 않아, Docling의 formula enrichment(CodeFormula 모델)를 사용합니다. 본문 수식은 `$$ LaTeX $$` 형태로 chunk에 들어갑니다. 단, **표 셀 안의 수식은 LaTeX로 변환되지 않고** 셀 텍스트 그대로 HTML에 들어갑니다 (논문 Fig.7과 다른 점). 수식 모델은 이미지에서 LaTeX를 생성하므로 틀린 수식이 나올 수 있어, `.md` 파일로 샘플을 확인하는 것을 권장합니다.
-3. **파싱 규칙은 DNV-RU-SHIP 체계 기준**입니다 (Pt.2 Materials and welding 553쪽으로 확인).
+1. **표 내용도 임베딩** (`config.yaml`의 `retriever.embed_tables`, 기본 `true`): 논문은 `content`만 임베딩하고 표는 답변 생성 때만 LLM에 첨부합니다. 그런데 DNV 규칙은 답(계수·최소 두께 등)이 표 행에만 있는 경우가 많아서, 예를 들어 "minimum thickness of bottom shell plating"을 검색하면 정답인 `Pt.3 Ch.6 Section 3 [1.1.1]`이 Top-5에 들지 못하고 본문에 같은 단어가 있는 선종별 규칙이 대신 나옵니다 (실제 답 "Keel, bottom, bilge … a = 4.5, b = 0.035"는 Table 1 안에만 있음). 그래서 chunk가 참조하는 표(`referenced_tables`와 같은 규칙)를 행마다 `셀 | 셀 | ...` 평문으로 펼쳐 `content` 뒤에 붙인 텍스트로 임베딩합니다(`parse.embed_text`). 이 텍스트는 2단계 인덱스, 3단계 GPT-4o 질문 생성·cross-encoder 채점, 4단계 학습에 똑같이 쓰입니다.
+   - `chunks.jsonl`과 `chunk_id`는 바뀌지 않습니다(1단계를 다시 돌릴 필요 없음). 생성 단계의 LLM 입력도 그대로 `content` + 표 HTML입니다.
+   - 현재 DB 기준 10,574개 chunk 중 1,170개에 표가 붙고, 640개 표 중 611개가 어떤 chunk에서든 참조됩니다.
+   - 표가 붙으면서 512 token을 넘는 chunk가 약 530개 → 870개로 늘어납니다(단어 수 기준 추정). 넘는 부분(주로 표 뒷부분)은 잘립니다.
+   - 표 셀 구분은 Docling 결과를 따르므로 값이 옆 셀 텍스트에 붙어 나오기도 합니다 (예: `Keel, bottom, bilge, and sea chest boundaries 4.5`).
+   - 설정을 바꾸면 02(base) → 03 → 04 → 02(adapted)를 다시 실행해야 합니다. 인덱스 `meta.json`에 `embed_tables`가 기록되어, 설정과 다른 base 인덱스로 03 label을 돌리면 에러가 납니다. 이미 만든 `queries.jsonl`은 검사하지 않으므로 직접 지우세요.
+2. **Negative mining**: 논문은 생성 질문 × DB 전체를 cross-encoder로 채점합니다(약 6만 × 15만 = 90억 쌍). 이는 현실적으로 불가능하므로, 하위 30% 구간은 **base bi-encoder 점수**로 정하고 cross-encoder는 실제 학습 쌍의 라벨링에만 씁니다. 또 같은 Article의 chunk는 negative에서 제외합니다(정답 텍스트를 포함할 수 있음).
+3. **수식 → LaTeX**: 논문은 변환 방법을 밝히지 않아, Docling의 formula enrichment(CodeFormula 모델)를 사용합니다. 본문 수식은 `$$ LaTeX $$` 형태로 chunk에 들어갑니다. 단, **표 셀 안의 수식은 LaTeX로 변환되지 않고** 셀 텍스트 그대로 HTML에 들어갑니다 (논문 Fig.7과 다른 점). 수식 모델은 이미지에서 LaTeX를 생성하므로 틀린 수식이 나올 수 있어, `.md` 파일로 샘플을 확인하는 것을 권장합니다.
+
+## 제약
+
+1. **파싱 규칙은 DNV-RU-SHIP 체계 기준**입니다 (Pt.2 Materials and welding 553쪽으로 확인).
    - PDF 하나에 여러 Chapter가 합쳐져 있어, **PDF 책갈피**로 페이지별 Chapter를 정하고 `Section ...` 책갈피 구간만 본문으로 씁니다 (표지·Changes·Contents 제외). 책갈피가 없는 PDF는 전체를 본문으로 봅니다.
    - Section 번호가 Chapter마다 다시 시작하므로 `section` 값은 `Pt.2 Ch.1 Section 3 TESTING PROCEDURES`처럼 Chapter를 포함합니다.
    - 계층: `SECTION N` → `1` → `1.1`(Article) → `1.1.1` → `1.1.1.1` / `a)`. `—` 글머리 목록과 Guidance note는 해당 조항 본문에 포함됩니다.
    - 매 페이지 워터마크(`This copy of the document is intended for use by …`), 우측 세로 표기, `---e-n-d---o-f---…` 표시는 제거합니다. 이 표시가 수식으로 잘못 인식된 LaTeX와 수식 번호만 있는 `(1)` 수식도 버립니다.
    - 확인 결과: 책갈피의 Article(`1.1` 수준) 642개를 모두 같은 번호·Section·Chapter로 복원했습니다. 단 이 검증은 Docling 대신 PDF 텍스트 라인으로 한 것이므로, **실제 01 실행 후 `chunks.jsonl`과 `.md`를 직접 확인하세요.**
-4. 다른 Part(PDF)의 표 참조와 조항 간 상호참조(`see [2.3.4]`)는 처리하지 않습니다 (논문 future work).
-5. Top-k에 같은 Article의 상위·하위 chunk가 함께 들어올 수 있습니다 (논문에 처리 방법 언급 없음).
+2. 다른 Part(PDF)의 표 참조와 조항 간 상호참조(`see [2.3.4]`)는 처리하지 않습니다 (논문 future work).
+3. Top-k에 같은 Article의 상위·하위 chunk가 함께 들어올 수 있습니다 (논문에 처리 방법 언급 없음).
 
 ## 비용·시간 참고 (논문 설정 기준)
 

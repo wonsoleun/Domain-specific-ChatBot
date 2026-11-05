@@ -1,7 +1,7 @@
 """GPL 기반 학습 데이터 생성 (논문 3.2, Fig.12).
 
 1) Query synthesis   : GPT-4o로 Content당 질문 3개 생성
-2) Similarity eval   : cross-encoder로 (query, content) 점수
+2) Similarity eval   : cross-encoder로 (query, content) 점수 (embed_tables면 content + 표 평문)
 3) Negative mining   : 유사도 하위 30% 구간에서 50개 랜덤 샘플링
 4) Data labeling     : margin = CE(q, pos) - CE(q, neg)
 
@@ -22,6 +22,7 @@ from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
+from .parse import chunk_texts
 from .retrieve import load_index
 from .utils import read_jsonl
 
@@ -32,8 +33,9 @@ Return JSON: {{"questions": ["...", "..."]}}"""
 
 
 def synthesize_queries(chunks, out_path, model="gpt-4o", n_contents=20000, per_content=3,
-                       workers=8, seed=42):
-    """chunk를 n_contents개 샘플링해 질문 생성. 중단 후 재실행하면 이어서 진행."""
+                       workers=8, seed=42, table_lookup=None):
+    """chunk를 n_contents개 샘플링해 질문 생성. 중단 후 재실행하면 이어서 진행.
+    table_lookup을 주면 참조된 표도 GPT-4o에 보여줘서 표 값에 대한 질문도 생성됨."""
     from openai import OpenAI
     client = OpenAI()  # OPENAI_API_KEY 환경변수 사용
 
@@ -52,7 +54,7 @@ def synthesize_queries(chunks, out_path, model="gpt-4o", n_contents=20000, per_c
                 model=model,
                 response_format={"type": "json_object"},
                 messages=[{"role": "system", "content": QUERY_INSTRUCTIONS.format(n=per_content)},
-                          {"role": "user", "content": f"Rule:\n{chunk['content']}"}],
+                          {"role": "user", "content": f"Rule:\n{chunk_texts([chunk], table_lookup)[0]}"}],
             )
             qs = json.loads(resp.choices[0].message.content).get("questions", [])
         except Exception as e:
@@ -86,7 +88,7 @@ def _cross_encoder_scores(model, tok, pairs, batch_size=256, device="cuda"):
 
 
 def mine_and_label(chunks, queries_path, base_index_dir, out_path, cross_encoder,
-                   negatives_per_query=50, bottom_ratio=0.3, seed=42):
+                   negatives_per_query=50, bottom_ratio=0.3, seed=42, table_lookup=None):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     rng = np.random.default_rng(seed)
     queries = read_jsonl(queries_path)
@@ -96,7 +98,7 @@ def mine_and_label(chunks, queries_path, base_index_dir, out_path, cross_encoder
         raise ValueError(f"queries.jsonl의 {len(stale)}개 질문이 현재 chunks.jsonl과 맞지 않습니다 "
                          f"(01을 다시 실행해 chunk_id가 바뀜). queries.jsonl을 지우고 --step queries부터 다시 실행하세요.")
 
-    meta, corpus = load_index(base_index_dir, len(chunks))
+    meta, corpus = load_index(base_index_dir, len(chunks), embed_tables=table_lookup is not None)
     corpus = torch.from_numpy(corpus).to(device)
     bi = SentenceTransformer(meta["model"], device=device)
     q_emb = bi.encode([q["query"] for q in queries], convert_to_tensor=True, show_progress_bar=True).to(device)
@@ -119,7 +121,7 @@ def mine_and_label(chunks, queries_path, base_index_dir, out_path, cross_encoder
     # 2) + 4) cross-encoder 점수 -> margin 라벨
     tok = AutoTokenizer.from_pretrained(cross_encoder)
     ce = AutoModelForSequenceClassification.from_pretrained(cross_encoder).to(device).eval()
-    texts = [c["content"] for c in chunks]
+    texts = chunk_texts(chunks, table_lookup)  # 인덱스와 같은 텍스트로 채점
     pos_scores = _cross_encoder_scores(ce, tok, [(q["query"], texts[p]) for q, p in zip(queries, pos_ids)], device=device)
     q_idx = np.repeat(np.arange(len(queries)), [len(n) for n in neg_ids])
     neg_flat = np.concatenate(neg_ids).astype(np.int64)

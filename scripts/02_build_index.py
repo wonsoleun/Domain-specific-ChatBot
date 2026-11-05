@@ -5,7 +5,7 @@
 import argparse
 
 from shiprag.retrieve import build_index
-from shiprag.utils import load_config
+from shiprag.utils import load_config, load_table_lookup
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--config", default="config.yaml")
@@ -16,5 +16,6 @@ p, r = cfg["paths"], cfg["retriever"]
 
 model = r["base_model"] if args.model == "base" else p["model_out"]
 index_dir = p["index_base"] if args.model == "base" else p["index_adapted"]
-emb = build_index(model, p["chunks"], index_dir, r["batch_size"], r["max_seq_length"])
-print(f"saved {emb.shape} embeddings to {index_dir}")
+table_lookup = load_table_lookup(p["tables"]) if r.get("embed_tables") else None
+emb = build_index(model, p["chunks"], index_dir, r["batch_size"], r["max_seq_length"], table_lookup)
+print(f"saved {emb.shape} embeddings to {index_dir} (embed_tables={table_lookup is not None})")
