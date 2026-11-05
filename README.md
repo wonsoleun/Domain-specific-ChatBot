@@ -211,6 +211,7 @@ Colab 세션은 끊길 수 있으니 `data/`, `models/`를 Google Drive에 두�
 - 3단계 질문 생성: chunk 20,000개 → GPT-4o 호출 20,000회
 - 3단계 라벨링: 300만 쌍 cross-encoder 추론 (T4 기준 수십 분 수준)
 - 4단계 학습: 논문은 RTX A6000에서 약 12시간. Colab T4에서는 더 오래 걸리므로 처음에는 `n_contents`, `max_steps`를 줄여서 돌려보세요.
+  - T4(15GB)에서 batch 64를 한 번에 올리면 CUDA OOM이 나므로, `train.micro_batch_size`(기본 16) 단위로 나눠 gradient를 누적합니다. MarginMSE는 샘플별 독립 loss라 결과는 batch 64와 같습니다. 그래도 OOM이면 8로 줄이세요.
 
 ## 구조
 

@@ -24,7 +24,11 @@ def _split_by_group(group, val_ratio, seed):
 
 def train(base_model, chunks_path, queries_path, triplets_path, out_dir,
           batch_size=64, lr=1e-5, max_steps=30000, eval_every=1000, patience=5,
-          val_ratio=0.01, max_seq_length=256, fp16=True, seed=42, table_lookup=None):
+          val_ratio=0.01, max_seq_length=256, fp16=True, seed=42, table_lookup=None,
+          micro_batch_size=None):
+    """micro_batch_size: batch를 이 크기로 나눠 gradient를 누적 (GPU 메모리 절약).
+    MarginMSE는 샘플별 독립 loss라 누적 결과가 batch_size 한 번에 계산한 것과 같다."""
+    mb = micro_batch_size or batch_size
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch.manual_seed(seed)
     model = SentenceTransformer(base_model, device=device)
@@ -53,12 +57,13 @@ def train(base_model, chunks_path, queries_path, triplets_path, out_dir,
     @torch.no_grad()
     def evaluate():
         model.eval()
-        losses = []
-        for i in range(0, len(val_ids), batch_size):
+        total = 0.0
+        for i in range(0, len(val_ids), mb):
+            sub = val_ids[i:i + mb]
             with torch.autocast(device_type=device, enabled=fp16 and device == "cuda"):
-                losses.append(batch_loss(val_ids[i:i + batch_size]).item())
+                total += batch_loss(sub).item() * len(sub)
         model.train()
-        return float(np.mean(losses))
+        return total / len(val_ids)
 
     opt = torch.optim.AdamW(model.parameters(), lr=lr)
     scaler = torch.amp.GradScaler(enabled=fp16 and device == "cuda")
@@ -73,16 +78,20 @@ def train(base_model, chunks_path, queries_path, triplets_path, out_dir,
         ids = order[cursor:cursor + batch_size]
         cursor += batch_size
 
-        with torch.autocast(device_type=device, enabled=fp16 and device == "cuda"):
-            loss = batch_loss(ids)
         opt.zero_grad()
-        scaler.scale(loss).backward()
+        train_loss = 0.0
+        for s in range(0, len(ids), mb):
+            sub = ids[s:s + mb]
+            with torch.autocast(device_type=device, enabled=fp16 and device == "cuda"):
+                loss = batch_loss(sub) * (len(sub) / len(ids))  # batch 평균이 되도록 가중
+            scaler.scale(loss).backward()
+            train_loss += loss.item()
         scaler.step(opt)
         scaler.update()
 
         if step % eval_every == 0:
             val = evaluate()
-            print(f"step {step}  train_loss {loss.item():.4f}  val_loss {val:.4f}")
+            print(f"step {step}  train_loss {train_loss:.4f}  val_loss {val:.4f}")
             if val < best:
                 best, bad = val, 0
                 model.save(str(Path(out_dir)))

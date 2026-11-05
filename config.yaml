@@ -43,8 +43,9 @@ gpl:
 # 4단계: Domain adaptation 학습 (논문 4.2)
 train:
   batch_size: 64
+  micro_batch_size: 16    # batch를 나눠 gradient 누적 (결과는 batch 64와 동일). T4(15GB)에서 64는 OOM, 그래도 OOM이면 8
   lr: 1.0e-5
-  max_steps: 30000
+  max_steps: 10000        # 논문은 30000. Colab T4 세션 제한(~12h) 때문에 축소 (step당 ~1.6s → 약 4.5h)
   eval_every: 1000
   patience: 5             # val loss가 연속 5번 개선되지 않으면 조기 종료
   val_ratio: 0.01         # query 단위로 1%를 검증용으로 분리

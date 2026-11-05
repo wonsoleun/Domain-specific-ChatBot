@@ -12,5 +12,6 @@ table_lookup = load_table_lookup(p["tables"]) if cfg["retriever"].get("embed_tab
 
 best = train(cfg["retriever"]["base_model"], p["chunks"], p["queries"], p["triplets"], p["model_out"],
              t["batch_size"], t["lr"], t["max_steps"], t["eval_every"], t["patience"],
-             t["val_ratio"], t["max_seq_length"], t["fp16"], table_lookup=table_lookup)
+             t["val_ratio"], t["max_seq_length"], t["fp16"], table_lookup=table_lookup,
+             micro_batch_size=t.get("micro_batch_size"))
 print(f"best val_loss {best:.4f}, model saved to {p['model_out']}")
