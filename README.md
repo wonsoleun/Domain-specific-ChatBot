@@ -1,4 +1,4 @@
-# ship-reg-rag
+# Sea-Ya
 
 Han et al. (2026), *"A RAG-based Q&A system for ship regulations applying domain adaptation"* (IJNAOE 18, 100735) 구조를 DNV 규정 PDF에 적용한 baseline입니다.
 
