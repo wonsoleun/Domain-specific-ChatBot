@@ -102,7 +102,8 @@ Colab 세션은 끊길 수 있으니 `data/`, `models/`를 Google Drive에 두�
    - 표 셀 구분은 Docling 결과를 따르므로 값이 옆 셀 텍스트에 붙어 나오기도 합니다 (예: `Keel, bottom, bilge, and sea chest boundaries 4.5`).
    - 설정을 바꾸면 02(base) → 03 → 04 → 02(adapted)를 다시 실행해야 합니다. 인덱스 `meta.json`에 `embed_tables`가 기록되어, 설정과 다른 base 인덱스로 03 label을 돌리면 에러가 납니다. 이미 만든 `queries.jsonl`은 검사하지 않으므로 직접 지우세요.
 2. **Negative mining**: 논문은 생성 질문 × DB 전체를 cross-encoder로 채점합니다(약 6만 × 15만 = 90억 쌍). 이는 현실적으로 불가능하므로, 하위 30% 구간은 **base bi-encoder 점수**로 정하고 cross-encoder는 실제 학습 쌍의 라벨링에만 씁니다. 또 같은 Article의 chunk는 negative에서 제외합니다(정답 텍스트를 포함할 수 있음).
-3. **수식 → LaTeX**: 논문은 변환 방법을 밝히지 않아, Docling의 formula enrichment(CodeFormula 모델)를 사용합니다. 본문 수식은 `$$ LaTeX $$` 형태로 chunk에 들어갑니다. 단, **표 셀 안의 수식은 LaTeX로 변환되지 않고** 셀 텍스트 그대로 HTML에 들어갑니다 (논문 Fig.7과 다른 점). 수식 모델은 이미지에서 LaTeX를 생성하므로 틀린 수식이 나올 수 있어, `.md` 파일로 샘플을 확인하는 것을 권장합니다.
+3. **질문 생성 지시문 추가**: 논문의 지시문 3개에 4번 "규정 원문을 읽지 않은 사용자처럼 묻고, 조항·섹션·표 번호(`3.2.2`, `[2.1.1]`, `Section 5`, `Table 1` 등)를 쓰거나 수식·기호를 인용하지 말 것"을 추가했습니다 (`shiprag/gpl.py`의 `QUERY_INSTRUCTIONS`). 논문 지시문만으로 500개 chunk를 시험 생성했을 때 질문 1,500개 중 287개(19.1%)가 "according to rule 3.2.2", "as referenced in section [5.7.2]"처럼 번호나 수식을 포함했습니다. 실제 사용자는 번호를 모르고 묻는데, chunk `content`가 `3.2.2 ...`로 시작하므로 이런 질문은 의미가 아니라 번호 일치만으로 정답이 찾아져 학습 신호가 약해집니다. 지시문을 바꾸면 기존 `queries.jsonl`은 지우고 다시 생성해야 합니다.
+4. **수식 → LaTeX**: 논문은 변환 방법을 밝히지 않아, Docling의 formula enrichment(CodeFormula 모델)를 사용합니다. 본문 수식은 `$$ LaTeX $$` 형태로 chunk에 들어갑니다. 단, **표 셀 안의 수식은 LaTeX로 변환되지 않고** 셀 텍스트 그대로 HTML에 들어갑니다 (논문 Fig.7과 다른 점). 수식 모델은 이미지에서 LaTeX를 생성하므로 틀린 수식이 나올 수 있어, `.md` 파일로 샘플을 확인하는 것을 권장합니다.
 
 ## 제약
 

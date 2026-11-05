@@ -9,6 +9,10 @@
 하위 30%를 고릅니다. 이는 query 6만 개 × chunk 15만 개 = 90억 쌍이라 Colab에서 불가능하므로,
 하위 30% 구간은 base bi-encoder 점수로 정하고(행렬곱 한 번), cross-encoder는 실제 학습에 쓰이는
 (q, pos), (q, neg) 쌍의 라벨링에만 사용합니다.
+
+[논문과 다른 점] 질문 생성 지시문에 4번(조항·표 번호, 수식 인용 금지)을 추가했습니다.
+논문의 지시문 3개만 쓰면 약 19%의 질문이 "according to rule 3.2.2"처럼 번호를 포함해,
+의미가 아니라 번호 일치만으로 정답이 찾아지는 학습 데이터가 됩니다.
 """
 import json
 import random
@@ -29,6 +33,7 @@ from .utils import read_jsonl
 QUERY_INSTRUCTIONS = """1. Based on the following rule of ship regulations, generate {n} different questions.
 2. Generate questions users are likely to ask about ship regulations.
 3. Each question should cover a different aspect of the rule, providing diverse perspectives to understand it better.
+4. Ask as a user who has not read the rule text: do not mention rule, section, paragraph or table numbers (e.g. "3.2.2", "[2.1.1]", "Section 5", "Table 1"), and do not quote equations or symbols from the rule.
 Return JSON: {{"questions": ["...", "..."]}}"""
 
 
