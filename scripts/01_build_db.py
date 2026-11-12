@@ -15,7 +15,8 @@ p, pc = cfg["paths"], cfg["parse"]
 
 cc = cfg["convert"]
 converter = make_converter(cc["do_ocr"], do_formula_enrichment=cc["do_formula_enrichment"],
-                           fix_formula_bbox=cc.get("fix_formula_bbox", True))
+                           fix_formula_bbox=cc.get("fix_formula_bbox", True),
+                           formula_batch_size=cc.get("formula_batch_size"))
 all_articles, all_tables = [], []
 for pdf in sorted(Path(p["raw_pdf_dir"]).glob("**/*.pdf")):
     parts = convert_pdf(converter, pdf, p["docling_dir"], cc["batch_pages"])

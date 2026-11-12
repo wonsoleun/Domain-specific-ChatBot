@@ -1,7 +1,8 @@
-docling>=2.20
+docling==2.147.0       # shiprag/convert.py의 수식 보정이 이 버전 내부 구조(_init_models, CodeFormulaVlmModel)에 맞춰져 있음
 docling-core
 pypdfium2
 numpy
+scipy
 pyyaml
 tqdm
 torch

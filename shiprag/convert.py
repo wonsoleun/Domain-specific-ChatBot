@@ -169,9 +169,11 @@ class FormulaBBoxFix(GenericEnrichmentModel):
     """CodeFormula 모델을 감싸, 수식 이미지를 자르기 전에 prov bbox를 보정합니다.
     모델을 다시 로드하지 않도록 기존 인스턴스에 그대로 위임합니다."""
 
-    def __init__(self, inner):
+    def __init__(self, inner, batch_size=None):
         self.inner = inner
-        self.elements_batch_size = inner.elements_batch_size
+        # 수식을 한 번에 묶어 생성하는 개수. 하나가 반복 루프에 빠지면 묶음 전체가 2,048토큰까지 가서
+        # T4에서 CUDA OOM 경고가 잦으므로 줄일 수 있게 함 (Docling 기본 5)
+        self.elements_batch_size = batch_size or inner.elements_batch_size
         self.progress_step = inner.progress_step
 
     def is_processable(self, doc, element):
@@ -226,15 +228,17 @@ class FormulaBBoxFix(GenericEnrichmentModel):
 
 class ShipRagPdfPipeline(StandardPdfPipeline):
     """StandardPdfPipeline + 수식 bbox 보정(FormulaBBoxFix)."""
+    formula_batch_size = None  # make_converter가 하위 클래스로 지정
 
     def _init_models(self):
         super()._init_models()
-        self.enrichment_pipe = [FormulaBBoxFix(m) if isinstance(m, CodeFormulaVlmModel) else m
+        self.enrichment_pipe = [FormulaBBoxFix(m, self.formula_batch_size)
+                                if isinstance(m, CodeFormulaVlmModel) else m
                                 for m in self.enrichment_pipe]
 
 
 def make_converter(do_ocr=False, do_table_structure=True, do_formula_enrichment=True,
-                   fix_formula_bbox=True, page_images_scale=None):
+                   fix_formula_bbox=True, page_images_scale=None, formula_batch_size=None):
     """page_images_scale을 주면 페이지 이미지를 문서에 남겨 item.get_image(doc)로 잘린 영역을 볼 수 있음 (진단용)."""
     # DNV PDF는 모든 페이지에 텍스트 레이어가 있어 OCR(Docling 기본값 True)은 메모리·시간 낭비
     opts = PdfPipelineOptions(do_ocr=do_ocr, do_table_structure=do_table_structure,
@@ -243,7 +247,9 @@ def make_converter(do_ocr=False, do_table_structure=True, do_formula_enrichment=
         opts.generate_page_images = True
         opts.images_scale = page_images_scale
     if fix_formula_bbox:
-        fmt = PdfFormatOption(pipeline_options=opts, pipeline_cls=ShipRagPdfPipeline)
+        pipeline_cls = type("ShipRagPdfPipeline", (ShipRagPdfPipeline,),
+                            {"formula_batch_size": formula_batch_size})
+        fmt = PdfFormatOption(pipeline_options=opts, pipeline_cls=pipeline_cls)
     else:
         fmt = PdfFormatOption(pipeline_options=opts)
     return DocumentConverter(format_options={InputFormat.PDF: fmt})
