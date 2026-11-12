@@ -18,15 +18,6 @@ DNV PDF ─▶ Docling JSON(수식 LaTeX·표 구조) ─▶ ① 계층형 DB �
 | 평가 | 4.2.1 | `shiprag/evaluate.py` | 식 (4)~(5) 순위 점수 |
 | ⑥ 웹 UI (Sea-Ya) | - | `shiprag/web.py`, `shiprag/static/index.html` | ② 검색 모델 그대로 사용 (CPU), ⑤는 선택 |
 
-## 설치
-
-```bash
-pip install -r requirements.txt
-pip install -e .
-```
-
-- LLaMA 3.1은 gated 모델입니다. Hugging Face에서 라이선스에 동의한 뒤 `huggingface-cli login`(Colab은 `HF_TOKEN` secret)이 필요합니다.
-- 3단계는 `OPENAI_API_KEY` 환경변수가 필요합니다.
 
 ## 실행 순서
 
@@ -43,39 +34,6 @@ python scripts/05_ask.py --query "What is the minimum thickness of bottom platin
 ```
 
 검색만 확인할 때는 `--no-generate`, base 모델과 비교할 때는 `--index base`를 붙입니다. `--query`를 생략하면 대화형 모드로 실행되어 모델을 한 번만 로드합니다.
-
-### 웹 UI (Sea-Ya)
-
-검색 결과를 브라우저에서 채팅처럼 확인하는 웹사이트입니다. 서비스 이름은 **Sea-Ya**이고, 로고는 바다 물결(`~`)을 형상화했습니다. **GPU와 OpenAI 없이 노트북 CPU만으로 동작**하며(답변 생성은 선택), 인터넷이 없어도 검색은 됩니다.
-
-#### 실행
-
-GPU 없는 Windows PC 기준입니다 (프로젝트 폴더의 가상환경 `.venv` 사용).
-
-```powershell
-# 처음 한 번: 가상환경 + CPU용 torch + 의존성 설치
-python -m venv .venv
-.venv\Scripts\python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
-.venv\Scripts\python -m pip install -r requirements.txt
-.venv\Scripts\python -m pip install -e .
-
-# 처음 한 번: base 인덱스 생성 (CPU로 10,574개 chunk 기준 수십 분)
-.venv\Scripts\python scripts\02_build_index.py --model base
-
-# 서버 실행 → 브라우저에서 http://127.0.0.1:8000
-.venv\Scripts\python scripts\06_web.py
-```
-
-| 옵션 | 설명 |
-|---|---|
-| (없음) | 검색만. CPU로 충분 |
-| `--generate` | LLaMA 3.1 8B 답변 생성까지 (GPU 필요, Colab 등) |
-| `--host 0.0.0.0` | 같은 네트워크(와이파이)의 다른 기기에서 `http://<PC IP>:8000`으로 접속 허용 |
-| `--port 8080` | 포트 변경 (기본 8000) |
-
-- 서버를 켜 둔 터미널 창은 사이트를 쓰는 동안 열어 두고, 끌 때는 **Ctrl+C**를 누릅니다.
-- 기본 주소 `127.0.0.1`은 "이 PC 자신"이라서, 어느 와이파이에서든 서버를 켠 **그 PC의 브라우저**에서는 접속됩니다 (학교 발표용으로 노트북만 있으면 됨).
-- 인터넷이 없으면 시작 시 Hugging Face 온라인 확인 때문에 늦어질 수 있으니 `$env:HF_HUB_OFFLINE = "1"`을 먼저 설정하세요. 이때 수식(KaTeX)과 글꼴(Google Fonts)은 CDN에서 불러오지 못해, 수식이 `$$ ... $$` 원문으로 보이고 기본 글꼴로 표시됩니다.
 
 #### 사용한 모델·기술
 
@@ -99,38 +57,6 @@ python -m venv .venv
 | `shiprag/web.py` | FastAPI 앱 (`create_app`). 인덱스 존재 확인, 처음 요청 시 `Retriever` 로드 후 메모리에 유지, 검색 결과에 참조 표 첨부 |
 | `shiprag/static/index.html` | 화면 전체 (CSS·JS 포함). `pyproject.toml`의 package-data로 패키지에 포함 |
 
-#### 화면 구성
-
-| 영역 | 내용 |
-|---|---|
-| 왼쪽 사이드바 | Sea-Ya 로고, 새 대화, 최근 대화 목록(삭제 가능), 테마(시스템/라이트/다크), 전체 삭제. 접기 가능 |
-| 가운데 대화 | 첫 화면은 인사말 + 예시 질문 + 입력창. 질문하면 오른쪽 말풍선(질문)과 Top-k 조항 카드(제목, Section, 미리보기, 노드 번호, 페이지, 점수, 참조 표 개수) |
-| 입력창 | 검색 모델 **base / adapted** 선택(인덱스가 없는 쪽은 비활성화), 결과 수 3·5·10개, `--generate`일 때만 "답변 생성" 체크박스. Enter 보내기, Shift+Enter 줄바꿈 |
-| 오른쪽 상세 패널 | 카드를 누르면 열림. 출처 경로, 노드·페이지·점수, 조항 전문(수식 렌더링, 본문에 인라인된 Markdown 표는 표로 변환), 참조된 표(HTML) |
-
-- 색감은 Google 스타일(흰 배경, 파랑 `#1a73e8`, 연한 회청색 `#f0f4f9`)이고, 다크 모드와 좁은 화면(사이드바·상세 패널이 겹쳐 열림)을 지원합니다.
-- `http://127.0.0.1:8000/?q=질문`으로 열면 바로 검색합니다. `&open=1`을 붙이면 첫 결과의 상세 패널까지 엽니다 (시연용).
-- 표 HTML은 허용된 태그(`table`, `tr`, `td` 등)와 `colspan`/`rowspan`만 남기고 삽입합니다.
-
-#### API
-
-| 요청 | 입력 | 응답 |
-|---|---|---|
-| `GET /` | - | 화면 (`index.html`) |
-| `GET /api/status` | - | `{"indexes": {"base": true, "adapted": false}, "generate": false, "top_k": 5, "n_chunks": 10574, ...}` |
-| `POST /api/search` | `{"query": "...", "index": "base", "k": 5, "generate": false}` | `{"query", "index", "answer", "results": [{"rank", "score", "title", "doc", "section", "article_no", "node", "page", "content", "tables": [{"caption", "html", "page"}]}]}` |
-
-없는 인덱스를 고르면 404, 잘못된 인덱스 이름은 400, 서버가 `--generate` 없이 실행됐는데 `generate: true`면 400을 돌려줍니다.
-
-#### adapted 모델을 웹에 연결하려면
-
-학습(③·④)은 GPU가 필요하므로 Colab에서 하고, 웹은 노트북 CPU에서 그대로 돌립니다.
-
-1. Colab에서 `03 --step queries` → `03 --step label` → `04_train.py` → `02_build_index.py --model adapted`
-2. `models/bi-encoder-adapted/`(모델)와 `data/index/adapted/`(인덱스)를 **둘 다** 내려받아 노트북의 같은 경로에 넣기 (인덱스만 있으면 질문을 임베딩할 모델이 없어 오류)
-3. 서버를 다시 켜면 입력창의 adapted 버튼이 활성화되어 base와 같은 질문으로 비교 가능
-
-현재 03 질문 생성은 GPT-4o(OpenAI API)를 사용합니다.
 
 ### 검색 성능 비교 (선택)
 
@@ -145,6 +71,16 @@ python -m venv .venv
 ```bash
 python scripts/eval_retrieval.py --testset data/test.jsonl
 ```
+
+### 수식 보정 확인 (선택)
+
+지정한 쪽만 `fix_formula_bbox` 끄고/켜고 두 번 변환해, 수식별 LaTeX를 출력하고 Docling 이미지 내보내기(`get_image()`)로 수식 영역을 `data/diag_formula/off|on/pNNNN_kk.png`에 저장합니다. CodeFormula는 이 영역을 사방 18%씩 더 넓혀 봅니다.
+
+```bash
+python scripts/diag_formula.py --pdf "data/raw/DNV Rule SHIP Part 3 Hull - 2026_S.pdf" --pages 12 13 66
+```
+
+이 설정을 바꾸거나 Docling을 업데이트한 뒤에는 `data/processed/docling/<PDF이름>/` 폴더를 지우고 01부터 다시 실행해야 합니다. 이때 chunk가 달라지므로 02 인덱스도 다시 만들고, chunk 수가 바뀌었으면 `queries.jsonl`도 지운 뒤 03/04를 다시 돌리세요.
 
 ### Colab
 
@@ -193,6 +129,14 @@ Colab 세션은 끊길 수 있으니 `data/`, `models/`를 Google Drive에 두�
 2. **Negative mining**: 논문은 생성 질문 × DB 전체를 cross-encoder로 채점합니다(약 6만 × 15만 = 90억 쌍). 이는 현실적으로 불가능하므로, 하위 30% 구간은 **base bi-encoder 점수**로 정하고 cross-encoder는 실제 학습 쌍의 라벨링에만 씁니다. 또 같은 Article의 chunk는 negative에서 제외합니다(정답 텍스트를 포함할 수 있음).
 3. **질문 생성 지시문 추가**: 논문의 지시문 3개에 4번 "규정 원문을 읽지 않은 사용자처럼 묻고, 조항·섹션·표 번호(`3.2.2`, `[2.1.1]`, `Section 5`, `Table 1` 등)를 쓰거나 수식·기호를 인용하지 말 것"을 추가했습니다 (`shiprag/gpl.py`의 `QUERY_INSTRUCTIONS`). 논문 지시문만으로 500개 chunk를 시험 생성했을 때 질문 1,500개 중 287개(19.1%)가 "according to rule 3.2.2", "as referenced in section [5.7.2]"처럼 번호나 수식을 포함했습니다. 실제 사용자는 번호를 모르고 묻는데, chunk `content`가 `3.2.2 ...`로 시작하므로 이런 질문은 의미가 아니라 번호 일치만으로 정답이 찾아져 학습 신호가 약해집니다. 지시문을 바꾸면 기존 `queries.jsonl`은 지우고 다시 생성해야 합니다.
 4. **수식 → LaTeX**: 논문은 변환 방법을 밝히지 않아, Docling의 formula enrichment(CodeFormula 모델)를 사용합니다. 본문 수식은 `$$ LaTeX $$` 형태로 chunk에 들어갑니다. 단, **표 셀 안의 수식은 LaTeX로 변환되지 않고** 셀 텍스트 그대로 HTML에 들어갑니다 (논문 Fig.7과 다른 점). 수식 모델은 이미지에서 LaTeX를 생성하므로 틀린 수식이 나올 수 있어, `.md` 파일로 샘플을 확인하는 것을 권장합니다.
+5. **수식 영역 보정** (`convert.fix_formula_bbox`, 기본 켜짐): DNV PDF는 수식 본체를 글자가 아닌 그림(이미지 객체 또는 벡터 path)으로 넣는 경우가 많습니다. 예: Pt.3 Ch.1 Sec.2 [5.1]의 WSD 수식 `W_stat ≤ η_1 R`(p.12), Pt.3 Ch.2의 bow height `F_b` 수식(p.66). Docling layout 후처리(`layout_postprocessor._adjust_cluster_bboxes`)는 수식 bbox를 그 안의 PDF 텍스트 셀 크기로 줄입니다. 그래서 본체가 잘리고 꼬리 텍스트 `for condition A.`만 CodeFormula에 들어가 `$$ R \text { for condition } A . $$`처럼 수식 본체가 사라집니다. Docling의 처리 흐름(레이아웃 검출·후처리·읽기 순서)은 그대로 두고, `shiprag/convert.py`의 `ShipRagPdfPipeline`이 CodeFormula 모델을 `FormulaBBoxFix`로 감싸 수식 이미지를 자르기 직전(`prepare_element`)에 bbox를 보정합니다.
+   1. **후보 수집**: 줄어든 bbox 중심 위아래 80pt 띠 안에서 PDF 이미지 객체(`get_bitmap_rects()`)와, 페이지 이미지(144 dpi)의 잉크 연결 요소를 모읍니다. 잉크 기준 경계는 Shah et al.(2021), Mali et al.(2020)의 후처리 방식을 참고했고, 벡터 path로 그린 수식도 여기서 잡힙니다.
+   2. **걸러내기**: 높이 60pt 초과, 페이지 폭 80% 초과, 띠 밖으로 이어지는 그래픽(실제 그림·다른 줄)과 다른 항목의 텍스트 셀에 겹치는 잉크는 뺍니다. 인접한 줄의 수식이 합쳐지는 것이 두 선행 연구의 주요 오류였으므로 기준을 보수적으로 잡았습니다.
+   3. **합치기**: 꼬리 텍스트와 같은 줄에서 가로 15pt 안으로 이어지는 후보, 분수처럼 바로 위·아래 1.5pt 안에 붙은 후보를 하나의 수식 블록으로 합칩니다 (Hu et al. 2024).
+   4. **자르기**: 넓힌 영역을 `prov` bbox에 기록하고(JSON에도 저장), 기존 CodeFormula의 `prepare_element`로 페이지 이미지를 잘라 넣습니다. `parse.py`는 바뀌지 않습니다.
+   5. **반복 꼬리 정리**: CodeFormula가 정상 수식 뒤에 같은 내용을 조금씩 바꿔 가며 생성 한도(2,048토큰)까지 반복하는 경우가 있습니다. 예: F_b 수식(p.66) 뒤에 `\stackrel { \infty } { \infty } \cdots`가 4,000자 넘게 이어짐. Docling의 `TailRepetitionStopper`도 켜져 있지만, 64자 이하 단위가 16번 이상 *똑같이* 반복될 때만 잡아서 이 경우(반복 단위 ~400자)는 놓칩니다. 그래서 `FormulaBBoxFix`가 모델 출력을 받은 뒤 `strip_formula_loop`로 한 번 더 정리합니다. 2,000자 이상인 출력에서 24토큰 구간이 출력 끝까지 3번 이상 반복되면, 모든 반복에 공통인 범위까지 자릅니다. 그다음 닫히지 않은 그룹, 인자가 모자란 명령, 끝의 `\quad` 같은 공백 명령을 걷어냅니다. 기존 chunk의 수식 1,251개에 적용해 보니 정상 수식은 바뀌지 않았고(길이 조건이 없으면 Hog/Sag처럼 같은 구조가 되풀이되는 463·805자 정상 수식을 잘못 자름), 루프 2건만 잘렸습니다. 단, 정상 수식 바로 뒤에 반복되지 않는 쓰레기가 먼저 오고 짧은 쓰레기가 반복되는 형태는 그 앞부분 쓰레기가 남습니다.
+
+   보정 전후는 `scripts/diag_formula.py`로 비교합니다 (위 [수식 보정 확인](#수식-보정-확인-선택)).
 
 ## 제약
 
@@ -219,7 +163,7 @@ Colab 세션은 끊길 수 있으니 `data/`, `models/`를 Google Drive에 두�
 ship-reg-rag/
 ├── config.yaml
 ├── shiprag/
-│   ├── convert.py    # PDF → Docling JSON/MD (수식 LaTeX)
+│   ├── convert.py    # PDF → Docling JSON/MD (수식 LaTeX, 수식 영역 보정)
 │   ├── parse.py      # Docling JSON → 계층 chunk + 표 HTML
 │   ├── retrieve.py   # bi-encoder 인덱스/검색
 │   ├── gpl.py        # GPL 데이터 생성
