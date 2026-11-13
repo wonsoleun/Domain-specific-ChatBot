@@ -154,6 +154,11 @@
   .section-title { margin: 22px 0 8px; font-size: 13px; font-weight: 500; color: var(--muted); }
   .tablebox { border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin-bottom: 12px; }
   .tablebox .cap { font-size: 13px; font-weight: 500; margin-bottom: 8px; }
+  .figbox { border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin: 0 0 12px; }
+  /* 규정 그림은 흰 바탕의 선 그림이라 다크 모드에서도 흰 바탕을 유지해야 읽힘 */
+  .figbox a { display: block; background: #fff; border-radius: 6px; padding: 6px; }
+  .figbox img { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+  .figbox .cap { font-size: 13px; font-weight: 500; margin-top: 8px; }
   table { border-collapse: collapse; font-size: 12.5px; }
   th, td { border: 1px solid var(--line); padding: 5px 9px; vertical-align: top; text-align: left; }
   th { background: var(--soft); font-weight: 500; }
@@ -401,6 +406,7 @@ function hitCard(r, mi, ri) {
       <span class="tags">
         <span class="tag">${esc(node)}</span><span class="tag">p.${r.page}</span>
         ${r.tables.length ? `<span class="tag t">표 ${r.tables.length}개</span>` : ""}
+        ${(r.figures || []).length ? `<span class="tag t">그림 ${r.figures.length}개</span>` : ""}
       </span>
     </span>
   </button>`;
@@ -426,7 +432,7 @@ function renderThread(scrollToEnd = false) {
     if (m.role === "user") return `<div class="user-msg">${esc(m.text)}</div>`;
     if (m.error) return botMsg(`<div class="err">${esc(m.error)}</div>`);
     const lead = m.results.length
-      ? `<p>가장 관련 있는 조항 <b>${m.results.length}개</b>를 찾았어요. 조항을 누르면 오른쪽에 전문과 참조 표가 열려요.</p>`
+      ? `<p>가장 관련 있는 조항 <b>${m.results.length}개</b>를 찾았어요. 조항을 누르면 오른쪽에 전문과 그림·참조 표가 열려요.</p>`
       : `<p>관련 조항을 찾지 못했어요.</p>`;
     return botMsg(`
       ${m.answer ? `<div class="answer">${esc(m.answer)}</div>` : ""}
@@ -463,9 +469,12 @@ function openDetail(r) {
   const node = r.node === r.article_no ? `Article ${r.article_no} 전체` : `${r.node} (Article ${r.article_no})`;
   $("detailBody").innerHTML = `
     <div class="tags" style="margin:0 0 16px">
-      <span class="tag">${esc(r.doc)}</span><span class="tag">${esc(node)}</span><span class="tag">p.${r.page}</span><span class="tag">점수 ${r.score.toFixed(2)}</span>
+      <span class="tag">${esc(r.doc)}</span>${r.ref_id ? `<span class="tag">${esc(r.ref_id)}</span>` : ""}<span class="tag">${esc(node)}</span><span class="tag">p.${r.page}</span><span class="tag">점수 ${r.score.toFixed(2)}</span>
     </div>
     <div class="content">${renderContent(r.content)}</div>
+    ${(r.figures || []).length ? `<div class="section-title">그림</div>` + r.figures.map((f) =>
+      `<figure class="figbox"><a href="${esc(f.url)}" target="_blank" rel="noopener"><img src="${esc(f.url)}" alt="${esc(f.caption || "그림")}" loading="lazy"></a>
+        <figcaption class="cap">${esc(f.caption || "캡션 없는 그림")} · p.${f.page}</figcaption></figure>`).join("") : ""}
     ${r.tables.length ? `<div class="section-title">참조된 표</div>` + r.tables.map((t) =>
       `<div class="tablebox"><div class="cap">${esc(t.caption || "")} · p.${t.page}</div>${sanitizeTable(t.html)}</div>`).join("") : ""}`;
   renderMath($("detailBody"));

@@ -4,6 +4,8 @@ paths:
   docling_dir: data/processed/docling    # PDF별 Docling JSON + Markdown (변환 결과 캐시)
   chunks: data/processed/chunks.jsonl
   tables: data/processed/tables.jsonl
+  figures: data/processed/figures.jsonl  # 그림 목록 (캡션·페이지·bbox·위치한 조항)
+  figure_dir: data/processed/figures     # 그림 PNG (PDF 페이지를 bbox대로 잘라 저장)
   index_base: data/index/base            # base 모델로 만든 인덱스
   index_adapted: data/index/adapted      # domain-adapted 모델로 만든 인덱스
   queries: data/gpl/queries.jsonl
@@ -21,6 +23,7 @@ convert:
 # 1단계: PDF → Docling JSON → 계층 chunk (DNV 번호 체계 기준, 논문 2.2.1)
 parse:
   article_depth: 2        # "1.1" 수준을 Article로 간주 → "1.1.1", "a)", "i)"는 nested chunk
+  figure_scale: 2.0       # 그림 PNG 렌더링 배율 (1.0 = 72dpi, 2.0 = 144dpi)
 
 # 2단계: 검색 모듈 (논문 2.2.2, 4.2)
 retriever:
